@@ -7,11 +7,13 @@ passport.use(
     {
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: '/api/auth/google/callback',
+      callbackURL: process.env.GOOGLE_CALLBACK_URL,
     },
     async (accessToken, refreshToken, profile, done) => {
       const email = profile.emails[0].value;
       const avatar = profile.photos[0].value;
+      const fullname = profile.displayName || `${profile.name.givenName} ${profile.name.familyName}`;
+
 
       try {
         // Tìm theo googleId
@@ -29,6 +31,7 @@ passport.use(
             // Hoàn toàn mới → tạo user
             user = await User.create({
               googleId: profile.id,
+              fullname,
               email,
               avatar,
               username: email.split('@')[0], // 👈 bạn muốn chỉ dùng phần trước @ (ví dụ huy123 từ huy123@gmail.com),
