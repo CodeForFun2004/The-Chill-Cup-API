@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const passport = require('passport');
 require('../config/passport');
+const { generateAccessToken, generateRefreshToken } = require('../utils/generateToken');
 
 const {
   register,
@@ -20,43 +21,51 @@ router.post('/login', login);
 // Làm mới access token
 router.post('/refresh', refreshAccessToken);
 
-// Đăng xuất (cần accessToken để xác định người dùng)
+// Đăng xuất
 router.post('/logout', protect, logout);
 
-// Google OAuth
-router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
+// ✅ Google OAuth - Chỉ cần 'profile' và 'email'
+router.get(
+  '/google',
+  passport.authenticate('google', {
+    scope: ['profile', 'email'],
+  })
+);
 
-
-
-// Test API Json
+// ✅ Callback sau khi Google xác thực
 router.get(
   '/google/callback',
-  passport.authenticate('google', { session: false, failureRedirect: '/login' }),
+  passport.authenticate('google', {
+    session: false,
+    failureRedirect: '/login',
+  }),
   async (req, res) => {
-    const { generateAccessToken, generateRefreshToken } = require('../utils/generateToken');
+    try {
+      const accessToken = generateAccessToken(req.user);
+      const refreshToken = generateRefreshToken(req.user);
 
-    const accessToken = generateAccessToken(req.user);
-    const refreshToken = generateRefreshToken(req.user);
+      req.user.refreshToken = refreshToken;
+      await req.user.save();
 
-    req.user.refreshToken = refreshToken;
-    await req.user.save();
-
-
-  
-    res.json({
-      message: 'Đăng nhập Google thành công',
-      accessToken,
-      refreshToken,
-      user: {
-        id: req.user._id,
-        email: req.user.email,
-        username: req.user.username,
-        avatar: req.user.avatar,
-      }
-    });
-
+      res.json({
+        message: 'Đăng nhập Google thành công',
+        accessToken,
+        refreshToken,
+        user: {
+          id: req.user._id,
+          email: req.user.email,
+          fullname: req.user.fullname, // ✅ lấy từ req.user
+          username: req.user.username,
+          avatar: req.user.avatar,
+        },
+      });
+    } catch (error) {
+      console.error('Google login error:', error);
+      res.status(500).json({ message: 'Lỗi đăng nhập bằng Google' });
+    }
   }
 );
+
 
 
 // Test UI
