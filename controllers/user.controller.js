@@ -83,13 +83,16 @@ exports.getUserById = async (req, res) => {
 exports.updateUser = async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
-    }
+    if (!user) return res.status(404).json({ message: 'User not found' });
 
     const updates = req.body;
 
-    // ✅ Nếu có password mới → mã hoá trước khi update
+    // Nếu có avatar file mới → cập nhật link ảnh từ Cloudinary
+    if (req.file && req.file.path) {
+      updates.avatar = req.file.path;
+    }
+
+    // Nếu có password mới → mã hóa lại
     if (updates.password) {
       const salt = await bcrypt.genSalt(10);
       updates.password = await bcrypt.hash(updates.password, salt);
@@ -105,13 +108,15 @@ exports.updateUser = async (req, res) => {
         username: updatedUser.username,
         fullname: updatedUser.fullname,
         email: updatedUser.email,
-        role: updatedUser.role
+        role: updatedUser.role,
+        avatar: updatedUser.avatar
       }
     });
   } catch (err) {
     res.status(500).json({ message: 'Failed to update user', error: err.message });
   }
 };
+
 
 // @desc    Delete user
 // @route   DELETE /api/users/:id

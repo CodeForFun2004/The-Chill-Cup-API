@@ -1,10 +1,14 @@
 const User = require('../models/user.model');
+const PendingUser = require('../models/pendingUser.model');
 const { generateAccessToken, generateRefreshToken } = require('../utils/generateToken');
 const jwt = require('jsonwebtoken');
+const { generateOTP } = require('../utils/generateOTP');
+const { sendOTPEmail } = require('../services/email.service');
+const bcrypt = require('bcryptjs');
 
 // Đăng ký
-exports.register = async (req, res) => {
-  const {fullname,  username, email, password } = req.body;
+exports.registerRequest = async (req, res) => {
+  const { fullname, username, email, password } = req.body;
 
   try {
     const existingUser = await User.findOne({ $or: [{ email }, { username }] });
@@ -12,13 +16,50 @@ exports.register = async (req, res) => {
       return res.status(400).json({ message: 'Email hoặc username đã được sử dụng' });
     }
 
-    const user = await User.create({ fullname, username, email, password });
+    const otp = generateOTP();
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 phút
+
+    await PendingUser.deleteMany({ email }); // Xóa bản cũ nếu có
+    await PendingUser.create({ fullname, username, email, password: hashedPassword, otp, expiresAt });
+
+    await sendOTPEmail(email, otp);
+
+    res.status(200).json({ message: 'Mã OTP đã được gửi đến email của bạn' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// verify otp
+exports.verifyRegister = async (req, res) => {
+  const { email, otp } = req.body;
+
+  try {
+    const pending = await PendingUser.findOne({ email, otp });
+    if (!pending) {
+      return res.status(400).json({ message: 'OTP không đúng hoặc email chưa đăng ký' });
+    }
+
+    if (pending.expiresAt < new Date()) {
+      await PendingUser.deleteMany({ email });
+      return res.status(400).json({ message: 'Mã OTP đã hết hạn' });
+    }
+
+    // Tạo user từ pending
+    const user = await User.create({
+      fullname: pending.fullname,
+      username: pending.username,
+      email: pending.email,
+      password: pending.password
+    });
 
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);
-
     user.refreshToken = refreshToken;
     await user.save();
+
+    await PendingUser.deleteMany({ email });
 
     res.status(201).json({
       user: {
@@ -35,6 +76,7 @@ exports.register = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
+
 
 // Đăng nhập
 exports.login = async (req, res) => {
