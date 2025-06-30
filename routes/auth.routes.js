@@ -5,7 +5,8 @@ require('../config/passport');
 const { generateAccessToken, generateRefreshToken } = require('../utils/generateToken');
 
 const {
-  register,
+  registerRequest,
+  verifyRegister,
   login,
   refreshAccessToken,
   logout
@@ -13,7 +14,8 @@ const {
 const { protect } = require('../middlewares/auth.middleware');
 
 // Đăng ký
-router.post('/register', register);
+router.post('/register-request', registerRequest);
+router.post('/verify-register', verifyRegister);
 
 // Đăng nhập
 router.post('/login', login);
