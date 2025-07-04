@@ -7,6 +7,7 @@ const { sendOTPEmail } = require('../services/email.service');
 const bcrypt = require('bcryptjs');
 
 // Đăng ký
+// Đăng ký
 exports.registerRequest = async (req, res) => {
   const { fullname, username, email, password } = req.body;
 
@@ -17,11 +18,11 @@ exports.registerRequest = async (req, res) => {
     }
 
     const otp = generateOTP();
-    const hashedPassword = await bcrypt.hash(password, 10);
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 phút
 
-    await PendingUser.deleteMany({ email }); // Xóa bản cũ nếu có
-    await PendingUser.create({ fullname, username, email, password: hashedPassword, otp, expiresAt });
+    // Không hash mật khẩu ở đây
+    await PendingUser.deleteMany({ email });
+    await PendingUser.create({ fullname, username, email, password, otp, expiresAt });
 
     await sendOTPEmail(email, otp);
 
@@ -31,36 +32,43 @@ exports.registerRequest = async (req, res) => {
   }
 };
 
+
 // verify otp
 exports.verifyRegister = async (req, res) => {
   const { email, otp } = req.body;
 
   try {
+    // Tìm pending user
     const pending = await PendingUser.findOne({ email, otp });
     if (!pending) {
       return res.status(400).json({ message: 'OTP không đúng hoặc email chưa đăng ký' });
     }
 
+    // Kiểm tra OTP hết hạn
     if (pending.expiresAt < new Date()) {
       await PendingUser.deleteMany({ email });
       return res.status(400).json({ message: 'Mã OTP đã hết hạn' });
     }
 
-    // Tạo user từ pending
+    // Tạo user với mật khẩu đã được hash sẵn
     const user = await User.create({
       fullname: pending.fullname,
       username: pending.username,
       email: pending.email,
-      password: pending.password
+      password: pending.password, // đã hash từ bước registerRequest
     });
 
+    // Tạo token sau khi đã có user._id
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);
-    user.refreshToken = refreshToken;
-    await user.save();
 
+    // Gán refreshToken mà không gọi user.save() (để tránh pre-save hash lại)
+    await User.updateOne({ _id: user._id }, { refreshToken });
+
+    // Xóa pending user sau khi đăng ký thành công
     await PendingUser.deleteMany({ email });
 
+    // Gửi kết quả về client
     res.status(201).json({
       user: {
         id: user._id,
@@ -73,26 +81,35 @@ exports.verifyRegister = async (req, res) => {
       refreshToken,
     });
   } catch (err) {
+    console.error('Lỗi tại verifyRegister:', err);
     res.status(500).json({ message: err.message });
   }
 };
+
+
 
 
 // Đăng nhập
 exports.login = async (req, res) => {
   console.log('Đang login nè')
   const { usernameOrEmail, password } = req.body;
+   
+  console.log(`Mật khẩu được nhập: ${password}`)
 
   try {
     const user = await User.findOne({
       $or: [{ email: usernameOrEmail }, { username: usernameOrEmail }],
     });
 
+    console.log(`Mật khẩu dưới database: ${user.password}`)
+
     if (!user || !user.password) {
       return res.status(400).json({ message: 'Tài khoản không hợp lệ hoặc không hỗ trợ đăng nhập mật khẩu.' });
     }
 
     const isMatch = await user.matchPassword(password);
+    console.log(`Giá trị của isMatch: ${isMatch}`)
+    
     if (!isMatch) {
       return res.status(401).json({ message: 'Sai mật khẩu' });
     }
