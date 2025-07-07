@@ -1,1 +1,1 @@
-http://localhost:8080/api/auth/google/callback
+http://localhost:8080/api/auth/google
