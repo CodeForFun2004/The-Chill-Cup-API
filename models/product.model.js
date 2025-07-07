@@ -1,10 +1,12 @@
 // Product.schema.ts
+const mongoose = require('mongoose');
+
 const productSchema = new mongoose.Schema({
     name: String,
     description: String,
     basePrice: Number,
     image: String,
-    status: { type: String, enum: ['available', 'sold_out'] },
+    status: { type: String, enum: ['new', 'old'] },  // món mới ra mắt, món cũ để cập nhật cho các cửa hàng
     rating: { type: Number, min: 0, max: 5 },
     sizeOptions: [{ type: String, ref: 'Size' }],
     toppingOptions: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Topping' }],
