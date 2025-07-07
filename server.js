@@ -16,7 +16,7 @@ require('./config/passport');  // import sau dotenv.config()
 const userRoutes = require('./routes/user.routes')
 const toppingRoutes = require('./routes/topping.routes');
 const sizeRoutes = require('./routes/size.routes');
-
+const productRoutes = require('./routes/product.routes');
 
 const app = express();
 app.use(cors());
@@ -38,6 +38,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users',userRoutes)
 app.use('/api/toppings', toppingRoutes);
 app.use('/api/sizes', sizeRoutes);
+app.use('/api/products', productRoutes);
+
 
 
 const PORT = process.env.PORT || 8080;
