@@ -8,6 +8,8 @@ router.get('/', productController.getAllProducts); // public
 router.get('/:id', productController.getProductById); // public
 router.put('/:id', protect, isAdmin, productController.updateProduct);
 router.delete('/:id', protect, isAdmin, productController.deleteProduct);
+router.get('/detail/:id', productController.getProductById);
+
 
 // Ban & search
 router.put('/:id/ban', protect, isAdmin, productController.banProduct);
