@@ -17,6 +17,9 @@ const userRoutes = require('./routes/user.routes')
 const toppingRoutes = require('./routes/topping.routes');
 const sizeRoutes = require('./routes/size.routes');
 const productRoutes = require('./routes/product.routes');
+const categoryRoutes = require('./routes/category.routes');
+const storeRoutes = require('./routes/store.routes');
+
 
 const app = express();
 app.use(cors());
@@ -39,6 +42,8 @@ app.use('/api/users',userRoutes)
 app.use('/api/toppings', toppingRoutes);
 app.use('/api/sizes', sizeRoutes);
 app.use('/api/products', productRoutes);
+app.use('/api/categories', categoryRoutes);
+app.use('/api/stores', storeRoutes);
 
 
 
