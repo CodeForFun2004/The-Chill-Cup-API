@@ -6,7 +6,7 @@ const productSchema = new mongoose.Schema({
     description: String,
     basePrice: Number,
     image: String,
-    status: { type: String, enum: ['new', 'old'] },  // món mới ra mắt, món cũ để cập nhật cho các cửa hàng
+    status: { type: String, enum: ['new', 'old'], default: 'new' },  // món mới ra mắt, món cũ để cập nhật cho các cửa hàng
     rating: { type: Number, min: 0, max: 5 },
     sizeOptions: [{ type: String, ref: 'Size' }],
     toppingOptions: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Topping' }],
