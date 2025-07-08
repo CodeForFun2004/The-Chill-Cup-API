@@ -4,24 +4,43 @@ const User = require('../models/user.model');
 // Create new store
 exports.createStore = async (req, res) => {
   try {
-    const { name, address, contact, openHours, isActive, mapUrl, image, staffId } = req.body;
+    const {
+      name,
+      address,
+      contact,
+      openHours,
+      isActive,
+      mapUrl,
+      staffId
+    } = req.body;
 
-    const staff = await User.findOne({ staffId }); // Tìm theo mã nv001, nv002
+    const staff = await User.findOne({ staffId });
+
     if (!staff || (staff.role !== 'staff' && staff.role !== 'shipper')) {
       return res.status(400).json({ error: 'Staff không hợp lệ hoặc không tồn tại' });
     }
 
     const store = await Store.create({
-      name, address, contact, openHours, isActive, mapUrl, image,
+      name,
+      address,
+      contact,
+      openHours,
+      isActive,
+      mapUrl,
+      image: req.file?.path || '',
       staff: staff._id
     });
 
-    res.status(201).json(store);
+    res.status(201).json({
+      message: 'Tạo cửa hàng thành công',
+      store
+    });
   } catch (err) {
     console.error('[Create Store]', err);
     res.status(500).json({ error: 'Không thể tạo cửa hàng' });
   }
 };
+
 
 // Get all stores
 exports.getAllStores = async (_req, res) => {
@@ -47,21 +66,34 @@ exports.getStoreById = async (req, res) => {
 // Update store
 exports.updateStore = async (req, res) => {
   try {
-    const { staffId } = req.body;
-    let staff;
+    const updates = req.body;
 
-    if (staffId) {
-      staff = await User.findOne({ staffId });
+    // Nếu có staffId thì map sang staff._id
+    if (updates.staffId) {
+      const staff = await User.findOne({ staffId: updates.staffId });
       if (!staff) return res.status(400).json({ error: 'Staff không tồn tại' });
-      req.body.staff = staff._id;
+      updates.staff = staff._id;
+      delete updates.staffId; // loại bỏ để tránh override
     }
 
-    const updated = await Store.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    res.status(200).json(updated);
+    // Nếu có ảnh mới từ Cloudinary
+    if (req.file?.path) {
+      updates.image = req.file.path;
+    }
+
+    const updated = await Store.findByIdAndUpdate(req.params.id, updates, { new: true });
+    if (!updated) return res.status(404).json({ error: 'Cửa hàng không tồn tại' });
+
+    res.status(200).json({
+      message: 'Cập nhật cửa hàng thành công',
+      store: updated
+    });
   } catch (err) {
+    console.error('[Update Store]', err);
     res.status(500).json({ error: 'Không thể cập nhật cửa hàng' });
   }
 };
+
 
 // Delete store
 exports.deleteStore = async (req, res) => {

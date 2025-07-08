@@ -2,20 +2,30 @@ const Category = require('../models/category.model');
 
 exports.createCategory = async (req, res) => {
   try {
-    const { category } = req.body;
+    const { category, description } = req.body;
 
     const existing = await Category.findOne({ category });
     if (existing) {
       return res.status(400).json({ error: 'Danh mục đã tồn tại' });
     }
 
-    const newCategory = await Category.create(req.body);
-    res.status(201).json(newCategory);
+    const newCategory = new Category({
+      category,
+      description,
+      icon: req.file?.path || ''
+    });
+
+    const saved = await newCategory.save();
+    res.status(201).json({
+      message: 'Tạo danh mục thành công',
+      category: saved
+    });
   } catch (err) {
     console.error('[Create Category]', err);
     res.status(500).json({ error: 'Không thể tạo danh mục' });
   }
 };
+
 
 exports.getAllCategories = async (req, res) => {
   try {
@@ -28,10 +38,23 @@ exports.getAllCategories = async (req, res) => {
 
 exports.updateCategory = async (req, res) => {
   try {
-    const updated = await Category.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const updates = req.body;
+
+    // nếu có ảnh mới thì gán
+    if (req.file?.path) {
+      updates.icon = req.file.path;
+    }
+
+    const updated = await Category.findByIdAndUpdate(req.params.id, updates, { new: true });
+
     if (!updated) return res.status(404).json({ error: 'Danh mục không tồn tại' });
-    res.status(200).json(updated);
+
+    res.status(200).json({
+      message: 'Cập nhật danh mục thành công',
+      category: updated
+    });
   } catch (err) {
+    console.error('[Update Category]', err);
     res.status(500).json({ error: 'Không thể cập nhật danh mục' });
   }
 };

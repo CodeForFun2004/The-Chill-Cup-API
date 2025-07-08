@@ -11,6 +11,12 @@ const {
 
 const { protect, isAdmin } = require('../middlewares/auth.middleware');
 const upload = require('../middlewares/upload.middleware');             //upload cloudinary
+const User = require('../models/user.model');
+const uploadUserAvatar = upload({
+  folderPrefix: 'chill-cup/avatars/users',
+  model: User,
+  nameField: 'username'
+});
 
 // @route   GET /api/users
 // @desc    Lấy danh sách tất cả người dùng (admin)
@@ -35,7 +41,8 @@ router.get('/:id', protect, getUserById);
 // @route   PUT /api/users/:id
 // @desc    Cập nhật thông tin người dùng
 // @access  Private (admin hoặc chính mình)
-router.put('/:id', upload.single('avatar'), updateUser);
+// router.put('/:id', upload.single('avatar'), updateUser);
+router.put('/:id', uploadUserAvatar.single('avatar'), updateUser);
 
 // @route   DELETE /api/users/:id
 // @desc    Xóa người dùng
