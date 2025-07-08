@@ -19,6 +19,7 @@ const sizeRoutes = require('./routes/size.routes');
 const productRoutes = require('./routes/product.routes');
 const categoryRoutes = require('./routes/category.routes');
 const storeRoutes = require('./routes/store.routes');
+const favouriteRoutes = require('./routes/favourite.routes');
 
 
 const app = express();
@@ -44,6 +45,7 @@ app.use('/api/sizes', sizeRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/stores', storeRoutes);
+app.use('/api/favourites', favouriteRoutes);
 
 
 
