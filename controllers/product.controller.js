@@ -1,22 +1,30 @@
 const Product = require('../models/product.model');
 
 exports.createProduct = async (req, res) => {
-    try {
-      const { name, storeId, categoryId } = req.body;
-  
-      // Kiểm tra trùng sản phẩm theo name + store + category
-      const existing = await Product.findOne({ name, storeId, categoryId });
-      if (existing) {
-        return res.status(400).json({ error: 'Sản phẩm đã tồn tại trong cửa hàng này và danh mục này' });
-      }
-  
-      const product = await Product.create(req.body);
-      res.status(201).json(product);
-    } catch (err) {
-      console.error('[Create Product]', err);
-      res.status(500).json({ error: 'Failed to create product' });
+  try {
+    const { name, storeId, categoryId } = req.body;
+
+    const existing = await Product.findOne({ name, storeId, categoryId });
+    if (existing) {
+      return res.status(400).json({ error: 'Sản phẩm đã tồn tại trong cửa hàng này và danh mục này' });
     }
-  };
+
+    const product = new Product({
+      ...req.body,
+      image: req.file?.path || ''
+    });
+
+    const saved = await product.save();
+    res.status(201).json({
+      message: 'Tạo sản phẩm thành công',
+      product: saved
+    });
+  } catch (err) {
+    console.error('[Create Product]', err);
+    res.status(500).json({ error: 'Failed to create product' });
+  }
+};
+
   
 
 exports.getAllProducts = async (req, res) => {
@@ -47,12 +55,28 @@ exports.getProductById = async (req, res) => {
 
 exports.updateProduct = async (req, res) => {
   try {
-    const updated = await Product.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    res.status(200).json(updated);
+    const updates = req.body;
+
+    if (req.file?.path) {
+      updates.image = req.file.path;
+    }
+
+    const updated = await Product.findByIdAndUpdate(req.params.id, updates, { new: true });
+
+    if (!updated) {
+      return res.status(404).json({ error: 'Sản phẩm không tồn tại' });
+    }
+
+    res.status(200).json({
+      message: 'Cập nhật sản phẩm thành công',
+      product: updated
+    });
   } catch (err) {
+    console.error('[Update Product]', err);
     res.status(500).json({ error: 'Failed to update product' });
   }
 };
+
 
 exports.deleteProduct = async (req, res) => {
   try {

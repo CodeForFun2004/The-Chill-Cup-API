@@ -22,6 +22,15 @@ const userSchema = new mongoose.Schema({
     sparse: true,
     default: null
   },
+   // đối với staff/ shipper
+  status: {
+    type: String,
+    enum: ['available', 'assigned'],
+    default: function () {
+      return (this.role === 'staff' || this.role === 'shipper') ? 'available' : undefined;
+    }
+  },
+  
 
   isBanned: {
     type: Boolean,
