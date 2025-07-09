@@ -8,4 +8,7 @@ router.get('/', protect, cartController.getCart);
 router.delete('/item/:itemId', protect, cartController.removeCartItem);
 router.delete('/', protect, cartController.clearCart);
 
+// routes/cart.routes.js
+router.post('/apply-discount', protect, cartController.applyDiscountToCart);
+
 module.exports = router;
