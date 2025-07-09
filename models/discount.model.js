@@ -8,7 +8,8 @@ const discountSchema = new mongoose.Schema({
   expiryDate: { type: Date, required: true },
   minOrder: { type: Number, default: 0 }, // đơn tối thiểu để được giảm
   isLock: { type: Boolean, default: false },
-  image: { type: String, default: '' }
+  image: { type: String, default: '' },
+  requiredPoints: { type: Number, default: 0 } // ⚠️ Thêm dòng này để đổi bằng điểm
 }, { timestamps: true });
 
 module.exports = mongoose.model('Discount', discountSchema);
