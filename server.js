@@ -22,6 +22,7 @@ const storeRoutes = require('./routes/store.routes');
 const favouriteRoutes = require('./routes/favourite.routes');
 const cartRoutes = require('./routes/cart.routes');
 const discountRoutes = require('./routes/discount.routes');
+const userDiscountRoutes = require('./routes/userDiscount.routes');
 
 const app = express();
 app.use(cors());
@@ -49,7 +50,7 @@ app.use('/api/stores', storeRoutes);
 app.use('/api/favourites', favouriteRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/discounts', discountRoutes);
-
+app.use('/api/user-discounts', userDiscountRoutes);
 
 
 
