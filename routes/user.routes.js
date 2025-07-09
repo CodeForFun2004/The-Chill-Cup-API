@@ -6,7 +6,8 @@ const {
   getUserById,
   updateUser,
   deleteUser,
-  getCurrentUser
+  getCurrentUser,
+  filterUsersByRole
 } = require('../controllers/user.controller');
 
 const { protect, isAdmin } = require('../middlewares/auth.middleware');
@@ -33,6 +34,10 @@ router.post('/', protect, isAdmin, createUser);
 // @access  Private
 router.get('/me', protect, getCurrentUser);
 
+
+// admin filter user by role, đặt trước getUserById vì nó liên quan đến thứ tự định nghĩa
+router.get('/filter', protect, isAdmin, filterUsersByRole);
+
 // @route   GET /api/users/:id
 // @desc    Lấy thông tin người dùng theo ID
 // @access  Private (admin hoặc chính mình)
@@ -48,5 +53,7 @@ router.put('/:id', uploadUserAvatar.single('avatar'), updateUser);
 // @desc    Xóa người dùng
 // @access  Private/Admin
 router.delete('/:id', protect, isAdmin, deleteUser);
+
+
 
 module.exports = router;

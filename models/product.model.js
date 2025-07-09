@@ -11,7 +11,7 @@ const productSchema = new mongoose.Schema({
     sizeOptions: [{ type: String, ref: 'Size' }],
     toppingOptions: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Topping' }],
     storeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Store' },
-    categoryId: { type: mongoose.Schema.Types.ObjectId, ref: 'Category' },
+    categoryId: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Category' }],  // 1 product có thể có 2 cate(trường hợp matcha/ new )
     isBanned: {
         type: Boolean,
         default: false
