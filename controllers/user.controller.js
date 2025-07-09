@@ -153,3 +153,21 @@ exports.getCurrentUser = async (req, res) => {
     res.status(500).json({ message: 'Failed to get current user', error: err.message });
   }
 };
+
+
+// filter user by role
+exports.filterUsersByRole = async (req, res) => {
+  try {
+    const { role } = req.query;
+
+    if (!role || !['user', 'admin', 'staff', 'shipper'].includes(role)) {
+      return res.status(400).json({ message: 'Role không hợp lệ hoặc thiếu' });
+    }
+
+    const users = await User.find({ role });
+
+    res.status(200).json({ users });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi server', error: error.message });
+  }
+};

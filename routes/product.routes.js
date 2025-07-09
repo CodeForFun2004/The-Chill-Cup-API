@@ -15,6 +15,12 @@ const uploadProductImage = upload({
 
 router.post('/', protect, isAdmin, uploadProductImage.single('image'), productController.createProduct);
 router.get('/', productController.getAllProducts); // public
+
+// filter để lấy list product theo category, vì thứ tự ưu tiên nên /filter phải đứng trước các routes /:id
+// admin cx đc lấy đc product bị ban
+// user thì ko hiển thị
+router.get('/filter-by-category', productController.filterByCategory);
+
 router.get('/:id', productController.getProductById); // public
 router.put('/:id', protect, isAdmin, uploadProductImage.single('image'), productController.updateProduct);
 router.delete('/:id', protect, isAdmin, productController.deleteProduct);
