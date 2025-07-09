@@ -1,0 +1,13 @@
+[
+    {
+      "userId": { "$oid": "68678324da0d632a1400601c" },
+      "totalPoints": 150,
+      "history": []
+    },
+    {
+      "userId": { "$oid": "686216dc8cd276266732d1d2" },
+      "totalPoints": 300,
+      "history": []
+    }
+  ]
+  
