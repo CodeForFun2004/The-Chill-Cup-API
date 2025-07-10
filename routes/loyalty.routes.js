@@ -1,16 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { protect } = require('../middlewares/auth.middleware');
-const { 
-  getLoyaltyPoints,
-  getAvailablePromotions,
-  getUserCoupons,
-  // Các hàm cũ cần thêm lại
-  redeemVoucher,
-  getMyPoints,
-  getPointHistory,
-  getAvailableVouchers
-} = require('../controllers/loyalty.controller');
+const { redeemVoucher, getMyPoints, getPointHistory, getAvailableVouchers } = require('../controllers/loyalty.controller');
 
 // Routes cũ
 router.post('/redeem', protect, redeemVoucher);
@@ -33,5 +24,9 @@ router.get('/promotions', protect, getAvailablePromotions);
 // @desc    Lấy danh sách voucher/coupon
 // @access  Private
 router.get('/coupons', protect, getUserCoupons);
+router.get('/available-vouchers', protect, getAvailableVouchers);  
+// UI cần hiển thị nút đổi cần điều kiện "Không đủ điểm để đổi voucher"  <=>  user click mà không đủ điểm
+
+
 
 module.exports = router;
