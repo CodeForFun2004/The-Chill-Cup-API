@@ -4,9 +4,21 @@ const { protect } = require('../middlewares/auth.middleware');
 const { 
   getLoyaltyPoints,
   getAvailablePromotions,
-  getUserCoupons
+  getUserCoupons,
+  // Các hàm cũ cần thêm lại
+  redeemVoucher,
+  getMyPoints,
+  getPointHistory,
+  getAvailableVouchers
 } = require('../controllers/loyalty.controller');
 
+// Routes cũ
+router.post('/redeem', protect, redeemVoucher);
+router.get('/me', protect, getMyPoints);              // Lấy tổng điểm
+router.get('/history', protect, getPointHistory);     // Lấy lịch sử tích điểm
+router.get('/available-vouchers', protect, getAvailableVouchers); // Vouchers có thể đổi
+
+// Routes mới
 // @route   GET /api/loyalty/points
 // @desc    Lấy điểm tích lũy và lịch sử
 // @access  Private
