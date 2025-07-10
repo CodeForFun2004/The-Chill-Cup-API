@@ -3,6 +3,7 @@ const Cart = require("../models/cart.model");
 const generateOrderNumber = require("../utils/generateOrderNumber");
 const LoyaltyPoint = require("../models/loyaltyPoint.model");
 const CartItem = require("../models/cartItem.model");
+const Discount = require('../models/discount.model');
 
 exports.createOrder = async (req, res) => {
     try {
@@ -22,33 +23,50 @@ exports.createOrder = async (req, res) => {
         return res.status(400).json({ error: 'Giỏ hàng trống' });
       }
   
+      // Nếu có mã giảm giá, kiểm tra thông tin
+      let appliedDiscount = null;
+      if (cart.promoCode) {
+        appliedDiscount = await Discount.findOne({ promotionCode: cart.promoCode });
+        if (!appliedDiscount) {
+          return res.status(400).json({ error: 'Mã giảm giá không tồn tại' });
+        }
+      }
+  
+      // ⚡ Subtotal KHÔNG gồm deliveryFee, nhưng đã trừ discount
+      const subtotalWithoutDelivery = cart.total - cart.deliveryFee;
+  
+      // ⚡ Tax = 10% của subtotalWithoutDelivery
+      const tax = Math.round(subtotalWithoutDelivery * 0.1);
+  
+      // ⚡ Total = subtotalWithoutDelivery + tax
+      const finalTotal = subtotalWithoutDelivery + tax;
+  
       const items = cart.cartItems.map(item => ({
         productId: item.productId?._id,
         name: item.productId?.name,
         size: item.size,
         toppings: item.toppings.map(t => ({ id: t._id, name: t.name })),
         quantity: item.quantity,
-        price: item.price // lấy snapshot giá đã tính sẵn từ cart
+        price: item.price // snapshot giá đã tính sẵn từ cart
       }));
-  
-      const tax = Math.round(cart.subtotal * 0.1); // ví dụ 10% thuế
-      const total = cart.total;
   
       const order = await Order.create({
         userId,
         orderNumber: generateOrderNumber(),
         items,
-        subtotal: cart.subtotal,
-        deliveryFee: cart.deliveryFee,
+        subtotal: subtotalWithoutDelivery,
+        discount: cart.discount || 0,
         tax,
-        total,
+        total: finalTotal,
+        deliveryFee: cart.deliveryFee, // ⚠ vẫn lưu xuống DB để biết
         deliveryAddress,
         phone,
         paymentMethod,
-        deliveryTime: '25-35 phút'
+        deliveryTime: '25-35 phút',
+        appliedPromoCode: appliedDiscount ? appliedDiscount.promotionCode : null
       });
   
-      // ✅ Xoá cart items trước
+      // ✅ Xoá cart items
       const deleteResult = await CartItem.deleteMany({ _id: { $in: cart.cartItems.map(item => item._id) } });
       console.log(`Đã xoá ${deleteResult.deletedCount} CartItems`);
   
@@ -56,8 +74,8 @@ exports.createOrder = async (req, res) => {
       await Cart.deleteOne({ userId });
       console.log(`Đã xoá Cart của user ${userId}`);
   
-      // ✅ Cộng điểm loyalty (1 điểm / 1.000đ)
-      const earnedPoints = Math.floor(total / 1000);
+      // ✅ Cộng điểm loyalty (1 điểm / 1.000đ, tính theo finalTotal)
+      const earnedPoints = Math.floor(finalTotal / 1000);
       await LoyaltyPoint.findOneAndUpdate(
         { userId },
         { $inc: { totalPoints: earnedPoints }, $push: { history: { orderId: order._id, pointsEarned: earnedPoints } } },
