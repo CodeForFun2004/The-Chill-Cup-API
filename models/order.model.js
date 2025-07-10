@@ -5,7 +5,6 @@ const orderSchema = new mongoose.Schema({
 
   storeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Store', required: true },  // store đặt hàng
 
-
   orderNumber: { type: String, required: true, unique: true }, // VD: #ORD-4bd8f7
 
   items: [
@@ -27,12 +26,23 @@ const orderSchema = new mongoose.Schema({
 
   paymentMethod: { type: String, enum: ['cod', 'vnpay'], default: 'cod' },
 
-  deliveryTime: { type: String, default: '25-35 phút' }, // Dự kiến (FE set cứng hoặc backend auto)
+  deliveryTime: { type: String, default: '25-35 phút' }, // Dự kiến
 
   status: {
     type: String,
-    enum: ['pending', 'processing', 'preparing','ready', 'delivering', 'completed', 'cancelled'],
+    enum: ['pending', 'processing', 'preparing', 'ready', 'delivering', 'completed', 'cancelled'],
     default: 'pending'
+  },
+
+  cancelReason: {
+    type: String,
+    default: null
+  },
+
+  shipperAssigned: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
   },
 
   createdAt: { type: Date, default: Date.now }

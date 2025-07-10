@@ -5,6 +5,7 @@ const LoyaltyPoint = require("../models/loyaltyPoint.model");
 const CartItem = require("../models/cartItem.model");
 const Discount = require('../models/discount.model');
 const Store = require('../models/store.model');
+const User = require('../models/user.model');
 
 
 exports.createOrder = async (req, res) => {
@@ -156,20 +157,33 @@ exports.getUserOrders = async (req, res) => {
   // 3️⃣ Staff xem + update trạng thái đơn
   exports.getStaffOrders = async (req, res) => {
     try {
+      const staffId = req.user._id; // lấy từ protect middleware
+  
+      // 1️⃣ Tìm store mà staff này quản lý
+      const store = await Store.findOne({ staff: staffId });
+      if (!store) {
+        return res.status(404).json({ error: 'Nhân viên chưa được gán quản lý cửa hàng nào' });
+      }
+  
       const { status } = req.query;
   
+      // 2️⃣ Lọc đơn hàng theo storeId + status
       const filter = {
+        storeId: store._id,
         status: { $in: ['pending', 'processing', 'preparing', 'ready', 'delivering'] }
       };
-      if (status) filter.status = status;
+  
+      if (status) filter.status = status; // nếu có query status cụ thể
   
       const orders = await Order.find(filter).sort({ createdAt: -1 });
+  
       res.status(200).json(orders);
     } catch (err) {
       console.error('[getStaffOrders]', err);
       res.status(500).json({ error: 'Không thể lấy danh sách đơn hàng cho nhân viên' });
     }
   };
+  
   
   exports.updateOrderStatusByStaff = async (req, res) => {
     try {
@@ -181,7 +195,12 @@ exports.getUserOrders = async (req, res) => {
       if (!order) return res.status(404).json({ error: 'Đơn hàng không tồn tại' });
   
       if (assignShipperId) {
-        order.shipperId = assignShipperId;
+        // 🔥 Tìm userId của shipper dựa trên staffId (vd: nv005)
+        const shipper = await User.findOne({ staffId: assignShipperId, role: 'shipper' });
+        if (!shipper) {
+          return res.status(404).json({ error: 'Không tìm thấy shipper với mã nhân viên này' });
+        }
+        order.shipperAssigned = shipper._id;
         order.status = 'delivering';
       } else {
         order.status = status;
@@ -203,9 +222,12 @@ exports.getUserOrders = async (req, res) => {
   // 4️⃣ Shipper xem + cập nhật đơn assigned
   exports.getShipperOrders = async (req, res) => {
     try {
-      const shipperId = req.user.staffId; // staffId dùng chung cho shipper
+      const shipperObjectId = req.user._id;
   
-      const orders = await Order.find({ shipperId }).sort({ createdAt: -1 });
+      const orders = await Order.find({ shipperAssigned: shipperObjectId })
+        .populate('shipperAssigned', 'fullname staffId phone') // optional
+        .sort({ createdAt: -1 });
+  
       res.status(200).json(orders);
     } catch (err) {
       console.error('[getShipperOrders]', err);
@@ -213,12 +235,13 @@ exports.getUserOrders = async (req, res) => {
     }
   };
   
+  
   exports.completeDeliveryByShipper = async (req, res) => {
     try {
       const { orderId } = req.params;
-      const shipperId = req.user.staffId;
+      const shipperObjectId = req.user._id;
   
-      const order = await Order.findOne({ _id: orderId, shipperId });
+      const order = await Order.findOne({ _id: orderId, shipperAssigned: shipperObjectId });
       if (!order) return res.status(404).json({ error: 'Đơn hàng không thuộc shipper này' });
   
       order.status = 'completed';
@@ -230,5 +253,6 @@ exports.getUserOrders = async (req, res) => {
       res.status(500).json({ error: 'Không thể cập nhật trạng thái giao hàng' });
     }
   };
+  
   
 
