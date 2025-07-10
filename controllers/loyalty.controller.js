@@ -89,3 +89,37 @@ exports.getMyPoints = async (req, res) => {
     }
   };
   
+//  Danh sách các voucher  mà user xem xét để đổi
+  // controllers/loyalty.controller.js
+  exports.getAvailableVouchers = async (req, res) => {
+    try {
+      const userId = req.user._id;
+  
+      const loyalty = await LoyaltyPoint.findOne({ userId });
+      const userPoints = loyalty ? loyalty.totalPoints : 0;
+  
+      const vouchers = await Discount.find({
+        isLock: false,
+        expiryDate: { $gte: new Date() }
+      }).lean();
+  
+      // Gắn thêm thông tin user đang có bao nhiêu điểm (nếu cần hiển thị ở UI)
+      res.status(200).json({
+        totalPoints: userPoints,
+        vouchers: vouchers.map(v => ({
+          _id: v._id,
+          title: v.title,
+          description: v.description,
+          promotionCode: v.promotionCode,
+          discountPercent: v.discountPercent,
+          requiredPoints: v.requiredPoints,
+          expiryDate: v.expiryDate,
+          image: v.image
+        }))
+      });
+    } catch (err) {
+      console.error('[Get Available Vouchers]', err);
+      res.status(500).json({ error: 'Không thể lấy danh sách voucher' });
+    }
+  };
+  
