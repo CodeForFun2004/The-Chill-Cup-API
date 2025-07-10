@@ -2,54 +2,86 @@ const LoyaltyPoint = require('../models/loyaltyPoint.model');
 const Discount = require('../models/discount.model');
 const UserDiscount = require('../models/userDiscount.model');
 
-// ⚡ Cộng điểm sau khi thanh toán thành công
-exports.addPointsFromOrder = async (userId, orderId, orderTotal) => {
-  const points = Math.floor(orderTotal / 1000); // 1 điểm = 1.000đ
-
-  const loyalty = await LoyaltyPoint.findOneAndUpdate(
-    { userId },
-    {
-      $inc: { totalPoints: points },
-      $push: { history: { orderId, pointsEarned: points } }
-    },
-    { upsert: true, new: true }
-  );
-
-  return loyalty;
+// @desc    Get user's loyalty points and history
+// @route   GET /api/loyalty/points
+// @access  Private
+exports.getLoyaltyPoints = async (req, res) => {
+  try {
+    let loyaltyPoint = await LoyaltyPoint.findOne({ userId: req.user.id });
+    
+    // Nếu chưa có, tạo mới
+    if (!loyaltyPoint) {
+      loyaltyPoint = await LoyaltyPoint.create({
+        userId: req.user.id,
+        points: 0,
+        history: []
+      });
+    }
+    
+    res.status(200).json({
+      points: loyaltyPoint.points,
+      history: loyaltyPoint.history
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Lỗi khi lấy thông tin điểm tích lũy', error: err.message });
+  }
 };
 
-// ✅ Đổi điểm lấy voucher
-exports.redeemVoucher = async (req, res) => {
+// @desc    Get available promotions for the user
+// @route   GET /api/loyalty/promotions
+// @access  Private
+exports.getAvailablePromotions = async (req, res) => {
   try {
-    const userId = req.user._id;
-    const { discountId } = req.body;
-
-    const discount = await Discount.findById(discountId);
-    if (!discount) return res.status(404).json({ error: 'Voucher không tồn tại' });
-
-    const requiredPoints = discount.requiredPoints || 0;
-
-    const loyalty = await LoyaltyPoint.findOne({ userId });
-    if (!loyalty || loyalty.totalPoints < requiredPoints) {
-      return res.status(400).json({ error: 'Không đủ điểm để đổi voucher' });
-    }
-
-    // Trừ điểm
-    loyalty.totalPoints -= requiredPoints;
-    await loyalty.save();
-
-    // Thêm vào bảng user-discount
-    await UserDiscount.create({
-      userId,
-      discountId,
-      isUsed: false,
-      isSwap: true
+    // Lấy tất cả khuyến mãi còn hạn
+    const discounts = await Discount.find({
+      expiryDate: { $gt: new Date() },
+      isLock: false
     });
-
-    res.status(200).json({ message: 'Đổi voucher thành công 🎉' });
+    
+    // Lấy các khuyến mãi người dùng đã dùng
+    const userDiscounts = await UserDiscount.find({
+      userId: req.user.id,
+      isUsed: true
+    });
+    
+    const usedDiscountIds = userDiscounts.map(ud => ud.discountId.toString());
+    
+    // Lọc ra các khuyến mãi chưa sử dụng
+    const availableDiscounts = discounts.filter(
+      discount => !usedDiscountIds.includes(discount._id.toString())
+    );
+    
+    res.status(200).json(availableDiscounts);
   } catch (err) {
-    console.error('[Redeem Voucher]', err);
-    res.status(500).json({ error: 'Lỗi khi đổi voucher bằng điểm' });
+    res.status(500).json({ message: 'Lỗi khi lấy danh sách khuyến mãi', error: err.message });
+  }
+};
+
+// @desc    Get user's coupons/vouchers
+// @route   GET /api/loyalty/coupons
+// @access  Private
+exports.getUserCoupons = async (req, res) => {
+  try {
+    // Lấy tất cả voucher/coupon đã gán cho người dùng
+    const userDiscounts = await UserDiscount.find({ 
+      userId: req.user.id 
+    }).populate({
+      path: 'discountId',
+      match: { expiryDate: { $gt: new Date() } } // Chỉ lấy những cái còn hạn
+    });
+    
+    // Lọc bỏ null values (trường hợp discount đã hết hạn)
+    const validUserDiscounts = userDiscounts.filter(ud => ud.discountId);
+    
+    const result = validUserDiscounts.map(ud => ({
+      _id: ud._id,
+      discount: ud.discountId,
+      isUsed: ud.isUsed
+    }));
+    
+    res.status(200).json(result);
+  } catch (err) {
+    res.status(500).json({ message: 'Lỗi khi lấy danh sách voucher/coupon', error: err.message });
   }
 };
 
