@@ -25,6 +25,7 @@ const discountRoutes = require('./routes/discount.routes');
 const userDiscountRoutes = require('./routes/userDiscount.routes');
 const loyaltyRoutes = require('./routes/loyalty.routes');
 const orderRoutes = require('./routes/order.routes');
+const passwordRoutes = require('./routes/password.routes');
 
 const app = express();
 app.use(cors());
@@ -55,6 +56,7 @@ app.use('/api/discounts', discountRoutes);
 app.use('/api/user-discounts', userDiscountRoutes);
 app.use('/api/loyalty', loyaltyRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/password', passwordRoutes);
 
 
 const PORT = process.env.PORT || 8080;
