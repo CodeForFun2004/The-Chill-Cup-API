@@ -160,7 +160,7 @@ exports.filterUsersByRole = async (req, res) => {
   try {
     const { role } = req.query;
 
-    if (!role || !['user', 'admin', 'staff', 'shipper'].includes(role)) {
+    if (!role || !['customer', 'admin', 'staff', 'shipper'].includes(role)) {
       return res.status(400).json({ message: 'Role không hợp lệ hoặc thiếu' });
     }
 
