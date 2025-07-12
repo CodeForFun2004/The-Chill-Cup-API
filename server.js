@@ -59,6 +59,10 @@ app.use('/api/orders', orderRoutes);
 
 const PORT = process.env.PORT || 8080;
 
-app.listen(PORT,  () =>{
-   console.log(`🚀 HHHHHHH Server running on http://localhost:${PORT}`)
+// app.listen(PORT,  () =>{
+//    console.log(`🚀 HHHHHHH Server running on http://localhost:${PORT}`)
+// });
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Server running on http://192.168.11.108:${PORT}`)
 });
