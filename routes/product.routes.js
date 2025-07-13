@@ -25,7 +25,6 @@ router.get("/", productController.getAllProducts); // public
 // admin cx đc lấy đc product bị ban
 // user thì ko hiển thị
 router.get("/filter-by-category", productController.filterByCategory);
-
 router.get("/:id", productController.getProductById); // public
 router.put(
   "/:id",
