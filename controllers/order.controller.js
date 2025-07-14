@@ -155,69 +155,96 @@ exports.getUserOrders = async (req, res) => {
 
   
   // 3️⃣ Staff xem + update trạng thái đơn
-  exports.getStaffOrders = async (req, res) => {
-    try {
-      const staffId = req.user._id; // lấy từ protect middleware
-  
-      // 1️⃣ Tìm store mà staff này quản lý
-      const store = await Store.findOne({ staff: staffId });
-      if (!store) {
-        return res.status(404).json({ error: 'Nhân viên chưa được gán quản lý cửa hàng nào' });
-      }
-  
-      const { status } = req.query;
-  
-      // 2️⃣ Lọc đơn hàng theo storeId + status
-      const filter = {
-        storeId: store._id,
-        status: { $in: ['pending', 'processing', 'preparing', 'ready', 'delivering'] }
-      };
-  
-      if (status) filter.status = status; // nếu có query status cụ thể
-  
-      const orders = await Order.find(filter).sort({ createdAt: -1 });
-  
-      res.status(200).json(orders);
-    } catch (err) {
-      console.error('[getStaffOrders]', err);
-      res.status(500).json({ error: 'Không thể lấy danh sách đơn hàng cho nhân viên' });
+  // order.controller.js
+exports.getStaffOrders = async (req, res) => {
+  try {
+    const staffId = req.user._id;
+    const store = await Store.findOne({ "staff._id": staffId });
+    if (!store) {
+      return res.status(404).json({ error: 'Nhân viên chưa được gán quản lý cửa hàng nào' });
     }
-  };
-  
-  
-  exports.updateOrderStatusByStaff = async (req, res) => {
-    try {
-      const { orderId } = req.params;
-      const { status, cancelReason, assignShipperId } = req.body;
-      const staffId = req.user.staffId;
-  
-      const order = await Order.findById(orderId);
-      if (!order) return res.status(404).json({ error: 'Đơn hàng không tồn tại' });
-  
-      if (assignShipperId) {
-        // 🔥 Tìm userId của shipper dựa trên staffId (vd: nv005)
-        const shipper = await User.findOne({ staffId: assignShipperId, role: 'shipper' });
-        if (!shipper) {
-          return res.status(404).json({ error: 'Không tìm thấy shipper với mã nhân viên này' });
-        }
-        order.shipperAssigned = shipper._id;
-        order.status = 'delivering';
-      } else {
-        order.status = status;
-        if (status === 'cancelled') {
-          order.cancelReason = cancelReason || 'Không có lý do';
-        }
-      }
-  
-      order.staffId = staffId;
-      await order.save();
-  
-      res.status(200).json({ message: 'Cập nhật trạng thái thành công', order });
-    } catch (err) {
-      console.error('[updateOrderStatusByStaff]', err);
-      res.status(500).json({ error: 'Không thể cập nhật trạng thái đơn hàng' });
+    const { status, limit = 50, offset = 0, startDate, endDate } = req.query;
+    const filter = { storeId: store._id };
+    if (status && status !== 'all') filter.status = status;
+    if (startDate && endDate) {
+      filter.createdAt = { $gte: new Date(startDate), $lte: new Date(endDate) };
     }
-  };
+    const orders = await Order.find(filter)
+      .populate('userId', 'fullname')
+      .skip(Number(offset))
+      .limit(Number(limit))
+      .sort({ createdAt: -1 });
+    const total = await Order.countDocuments(filter);
+    res.status(200).json({
+      orders: orders.map(o => ({
+        ...o._doc,
+        customerName: o.userId?.fullname || 'Unknown'
+      })),
+      total
+    });
+  } catch (err) {
+    console.error('[getStaffOrders]', err);
+    res.status(500).json({ error: 'Không thể lấy danh sách đơn hàng cho nhân viên' });
+  }
+};
+  
+  
+  // order.controller.js
+const validTransitions = {
+  pending: ['confirmed', 'cancelled'],
+  processing: ['confirmed', 'cancelled'],
+  confirmed: ['preparing', 'cancelled'],
+  preparing: ['ready', 'cancelled'],
+  ready: ['delivering', 'cancelled'],
+  delivering: ['completed', 'cancelled'],
+  completed: [],
+  cancelled: []
+};
+
+exports.updateOrderStatusByStaff = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { status, cancelReason, assignShipperId } = req.body;
+    const staffId = req.user._id;
+    const store = await Store.findOne({ "staff._id": staffId });
+    if (!store) {
+      return res.status(404).json({ error: 'Nhân viên chưa được gán quản lý cửa hàng nào' });
+    }
+    const order = await Order.findOne({ _id: orderId, storeId: store._id }).populate('userId', 'fullname');
+    if (!order) {
+      return res.status(404).json({ error: 'Đơn hàng không tồn tại hoặc không thuộc cửa hàng này' });
+    }
+    if (assignShipperId) {
+      const shipper = await User.findOne({ staffId: assignShipperId, role: 'shipper' });
+      if (!shipper) {
+        return res.status(404).json({ error: 'Không tìm thấy shipper với mã nhân viên này' });
+      }
+      if (order.status !== 'ready') {
+        return res.status(400).json({ error: 'Chỉ có thể gán shipper khi đơn hàng ở trạng thái ready' });
+      }
+      order.shipperAssigned = shipper._id;
+      order.status = 'delivering';
+    } else {
+      if (!validTransitions[order.status].includes(status)) {
+        return res.status(400).json({ error: `Không thể chuyển từ ${order.status} sang ${status}` });
+      }
+      order.status = status;
+      if (status === 'cancelled') {
+        order.cancelReason = cancelReason || 'Không có lý do';
+      }
+    }
+    await order.save();
+    res.status(200).json({
+      message: 'Cập nhật trạng thái thành công',
+      order: { ...order._doc, customerName: order.userId?.fullname || 'Unknown' }
+    });
+  } catch (err) {
+    console.error('[updateOrderStatusByStaff]', err);
+    res.status(500).json({ error: 'Không thể cập nhật trạng thái đơn hàng' });
+  }
+};
+
+
 
   // 4️⃣ Shipper xem + cập nhật đơn assigned
   exports.getShipperOrders = async (req, res) => {
@@ -254,5 +281,70 @@ exports.getUserOrders = async (req, res) => {
     }
   };
   
-  
+  //Staff thống kê
+exports.getStaffStatistics = async (req, res) => {
+  try {
+    const staffId = req.user._id;
+    const store = await Store.findOne({ "staff._id": staffId });
+    if (!store) {
+      return res.status(404).json({ error: 'Nhân viên chưa được gán quản lý cửa hàng nào' });
+    }
+    const { timeFilter = 'week', startDate, endDate } = req.query;
+    const dateRange = {};
+    if (startDate && endDate) {
+      dateRange.createdAt = { $gte: new Date(startDate), $lte: new Date(endDate) };
+    } else if (timeFilter === 'week') {
+      dateRange.createdAt = { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) };
+    } else if (timeFilter === 'month') {
+      dateRange.createdAt = { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) };
+    }
+    const stats = await Order.aggregate([
+      { $match: { storeId: store._id, ...dateRange } },
+      {
+        $group: {
+          _id: '$status',
+          count: { $sum: 1 },
+          totalRevenue: { $sum: '$total' }
+        }
+      }
+    ]);
+    const orderStats = {
+      totalOrders: 0,
+      pendingOrders: 0,
+      processingOrders: 0,
+      confirmedOrders: 0,
+      preparingOrders: 0,
+      readyOrders: 0,
+      deliveringOrders: 0,
+      completedOrders: 0,
+      cancelledOrders: 0
+    };
+    let totalRevenue = 0;
+    stats.forEach(stat => {
+      orderStats[`${stat._id}Orders`] = stat.count;
+      orderStats.totalOrders += stat.count;
+      totalRevenue += stat.totalRevenue;
+    });
+    const revenueStats = {
+      dailyRevenue: timeFilter === 'week' ? totalRevenue / 7 : totalRevenue / 30,
+      weeklyRevenue: timeFilter === 'week' ? totalRevenue : 0,
+      monthlyRevenue: timeFilter === 'month' ? totalRevenue : 0,
+      averageOrderValue: orderStats.totalOrders ? totalRevenue / orderStats.totalOrders : 0
+    };
+    res.status(200).json({ orderStats, revenueStats });
+  } catch (err) {
+    console.error('[getStaffStatistics]', err);
+    res.status(500).json({ error: 'Không thể lấy thống kê' });
+  }
+};
 
+// Staff lấy danh sách shipper
+exports.getAvailableShippers = async (req, res) => {
+  try {
+    const shippers = await User.find({ role: 'shipper', status: 'available' }).select('staffId fullname phone');
+    res.status(200).json(shippers);
+  } catch (err) {
+    console.error('[getAvailableShippers]', err);
+    res.status(500).json({ error: 'Không thể lấy danh sách shipper' });
+  }
+};
