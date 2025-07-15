@@ -3,91 +3,129 @@ const Cart = require("../models/cart.model");
 const generateOrderNumber = require("../utils/generateOrderNumber");
 const LoyaltyPoint = require("../models/loyaltyPoint.model");
 const CartItem = require("../models/cartItem.model");
-const Discount = require('../models/discount.model');
+const Discount = require("../models/discount.model");
 
 exports.createOrder = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  try {
+    const userId = req.user._id;
+    const { deliveryAddress, phone, paymentMethod } = req.body;
+
+    // ✅ Validate bắt buộc
+    if (!deliveryAddress || !phone) {
+      return res.status(400).json({ error: "Địa chỉ và số điện thoại bắt buộc" });
+    }
+
+    const allowedMethods = ["COD", "Momo"];
+    if (!allowedMethods.includes(paymentMethod)) {
+      return res.status(400).json({ error: "Phương thức thanh toán không hợp lệ" });
+    }
+
+    // ✅ Lấy giỏ hàng
+    const cart = await Cart.findOne({ userId })
+      .populate({
+        path: "cartItems",
+        populate: [{ path: "productId" }, { path: "toppings" }],
+      })
+      .session(session);
+
+    if (!cart || cart.cartItems.length === 0) {
+      return res.status(400).json({ error: "Giỏ hàng trống" });
+    }
+
+    // ✅ Check mã giảm giá nếu có
+    let appliedDiscount = null;
+    if (cart.promoCode) {
+      appliedDiscount = await Discount.findOne({
+        promotionCode: cart.promoCode,
+      }).session(session);
+      if (!appliedDiscount) {
+        return res.status(400).json({ error: "Mã giảm giá không tồn tại" });
+      }
+    }
+
+    // ✅ Tính tiền
+    const subtotalWithoutDelivery = cart.total - cart.deliveryFee;
+    const tax = Math.round(subtotalWithoutDelivery * 0.1);
+    const finalTotal = subtotalWithoutDelivery + tax;
+
+    const items = cart.cartItems.map((item) => ({
+      productId: item.productId?._id,
+      name: item.productId?.name,
+      size: item.size,
+      toppings: item.toppings.map((t) => ({ id: t._id, name: t.name })),
+      quantity: item.quantity,
+      price: item.price,
+    }));
+
+    // ✅ Tạo đơn hàng
+    const order = await Order.create(
+      [
+        {
+          userId,
+          orderNumber: generateOrderNumber(),
+          items,
+          subtotal: subtotalWithoutDelivery,
+          discount: cart.discount || 0,
+          tax,
+          total: finalTotal,
+          deliveryFee: cart.deliveryFee,
+          deliveryAddress,
+          phone,
+          paymentMethod,
+          deliveryTime: "25-35 phút",
+          appliedPromoCode: appliedDiscount ? appliedDiscount.promotionCode : null,
+        },
+      ],
+      { session }
+    );
+
+    // ✅ Xoá cart items
+    await CartItem.deleteMany(
+      { _id: { $in: cart.cartItems.map((item) => item._id) } },
+      { session }
+    );
+
+    // ✅ Xoá cart
+    await Cart.deleteOne({ userId }, { session });
+
+    // ✅ Cộng loyalty (nếu lỗi, không rollback order)
     try {
-      const userId = req.user._id;
-      const { deliveryAddress, phone, paymentMethod } = req.body;
-  
-      const cart = await Cart.findOne({ userId })
-        .populate({
-          path: 'cartItems',
-          populate: [
-            { path: 'productId' },
-            { path: 'toppings' }
-          ]
-        });
-  
-      if (!cart || cart.cartItems.length === 0) {
-        return res.status(400).json({ error: 'Giỏ hàng trống' });
-      }
-  
-      // Nếu có mã giảm giá, kiểm tra thông tin
-      let appliedDiscount = null;
-      if (cart.promoCode) {
-        appliedDiscount = await Discount.findOne({ promotionCode: cart.promoCode });
-        if (!appliedDiscount) {
-          return res.status(400).json({ error: 'Mã giảm giá không tồn tại' });
-        }
-      }
-  
-      // ⚡ Subtotal KHÔNG gồm deliveryFee, nhưng đã trừ discount
-      const subtotalWithoutDelivery = cart.total - cart.deliveryFee;
-  
-      // ⚡ Tax = 10% của subtotalWithoutDelivery
-      const tax = Math.round(subtotalWithoutDelivery * 0.1);
-  
-      // ⚡ Total = subtotalWithoutDelivery + tax
-      const finalTotal = subtotalWithoutDelivery + tax;
-  
-      const items = cart.cartItems.map(item => ({
-        productId: item.productId?._id,
-        name: item.productId?.name,
-        size: item.size,
-        toppings: item.toppings.map(t => ({ id: t._id, name: t.name })),
-        quantity: item.quantity,
-        price: item.price // snapshot giá đã tính sẵn từ cart
-      }));
-  
-      const order = await Order.create({
-        userId,
-        orderNumber: generateOrderNumber(),
-        items,
-        subtotal: subtotalWithoutDelivery,
-        discount: cart.discount || 0,
-        tax,
-        total: finalTotal,
-        deliveryFee: cart.deliveryFee, // ⚠ vẫn lưu xuống DB để biết
-        deliveryAddress,
-        phone,
-        paymentMethod,
-        deliveryTime: '25-35 phút',
-        appliedPromoCode: appliedDiscount ? appliedDiscount.promotionCode : null
-      });
-  
-      // ✅ Xoá cart items
-      const deleteResult = await CartItem.deleteMany({ _id: { $in: cart.cartItems.map(item => item._id) } });
-      console.log(`Đã xoá ${deleteResult.deletedCount} CartItems`);
-  
-      // ✅ Xoá cart
-      await Cart.deleteOne({ userId });
-      console.log(`Đã xoá Cart của user ${userId}`);
-  
-      // ✅ Cộng điểm loyalty (1 điểm / 1.000đ, tính theo finalTotal)
       const earnedPoints = Math.floor(finalTotal / 1000);
       await LoyaltyPoint.findOneAndUpdate(
         { userId },
-        { $inc: { totalPoints: earnedPoints }, $push: { history: { orderId: order._id, pointsEarned: earnedPoints } } },
-        { upsert: true, new: true }
+        {
+          $inc: { totalPoints: earnedPoints },
+          $push: { history: { orderId: order[0]._id, pointsEarned: earnedPoints } },
+        },
+        { upsert: true, new: true, session }
       );
-  
-      res.status(201).json({ message: 'Đặt hàng thành công 🎉', order });
-    } catch (err) {
-      console.error('[Create Order]', err);
-      res.status(500).json({ error: 'Không thể tạo đơn hàng' });
+    } catch (loyaltyErr) {
+      console.error("[LOYALTY]", loyaltyErr);
     }
-  };
+
+    // ✅ Hoàn tất transaction DB
+    await session.commitTransaction();
+    session.endSession();
+
+    // ✅ Xử lý redirect thanh toán
+    if (paymentMethod === "COD") {
+      return res.status(201).json({ message: "Đặt hàng thành công (COD)", order: order[0] });
+    }
+
+    if (paymentMethod === "Momo") {
+      const paymentUrl = await createMomoPayment(order[0]);
+      return res.status(201).json({ message: "Đi tới Momo", paymentUrl });
+    }
+
+  } catch (err) {
+    await session.abortTransaction();
+    session.endSession();
+    console.error("[Create Order]", err);
+    res.status(500).json({ error: "Không thể tạo đơn hàng" });
+  }
+};
 
 exports.getOrderById = async (req, res) => {
   try {
