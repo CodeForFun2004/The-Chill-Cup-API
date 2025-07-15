@@ -35,4 +35,20 @@ const isAdmin = (req, res, next) => {
   }
 };
 
-module.exports = { protect, isAdmin };
+const isStaff = (req, res, next) => {
+  if (req.user && req.user.role === 'staff') {
+    return next();
+  } else {
+    return res.status(403).json({ message: 'Truy cập bị từ chối: chỉ dành cho staff' });
+  }
+};
+
+const isShipper = (req, res, next) => {
+  if (req.user && req.user.role === 'shipper') {
+    return next();
+  } else {
+    return res.status(403).json({ message: 'Truy cập bị từ chối: chỉ dành cho shipper' });
+  }
+};
+
+module.exports = { protect, isAdmin, isStaff, isShipper };
