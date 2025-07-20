@@ -188,59 +188,70 @@ exports.getStaffOrders = async (req, res) => {
   }
 };
   
-  
-  // order.controller.js
-const validTransitions = {
-  pending: ['confirmed', 'cancelled'],
-  processing: ['confirmed', 'cancelled'],
-  confirmed: ['preparing', 'cancelled'],
-  preparing: ['ready', 'cancelled'],
-  ready: ['delivering', 'cancelled'],
-  delivering: ['completed', 'cancelled'],
-  completed: [],
-  cancelled: []
-};
 
+// order.controller.js
 exports.updateOrderStatusByStaff = async (req, res) => {
   try {
     const { orderId } = req.params;
     const { status, cancelReason, assignShipperId } = req.body;
     const staffId = req.user._id;
+
+    // Kiểm tra staff có được gán vào cửa hàng không
     const store = await Store.findOne({ "staff._id": staffId });
     if (!store) {
-      return res.status(404).json({ error: 'Nhân viên chưa được gán quản lý cửa hàng nào' });
+      return res.status(404).json({ error: "Nhân viên chưa được gán quản lý cửa hàng nào" });
     }
-    const order = await Order.findOne({ _id: orderId, storeId: store._id }).populate('userId', 'fullname');
+
+    // Kiểm tra đơn hàng tồn tại và thuộc cửa hàng
+    const order = await Order.findOne({ _id: orderId, storeId: store._id }).populate("userId", "fullname");
     if (!order) {
-      return res.status(404).json({ error: 'Đơn hàng không tồn tại hoặc không thuộc cửa hàng này' });
+      return res.status(404).json({ error: "Đơn hàng không tồn tại hoặc không thuộc cửa hàng này" });
     }
-    if (assignShipperId) {
-      const shipper = await User.findOne({ staffId: assignShipperId, role: 'shipper' });
-      if (!shipper) {
-        return res.status(404).json({ error: 'Không tìm thấy shipper với mã nhân viên này' });
+
+    // Xử lý gán hoặc bỏ gán shipper
+    if (assignShipperId !== undefined) {
+      if (order.status !== "ready" && order.status !== "delivering") {
+        return res.status(400).json({ error: "Chỉ có thể gán hoặc bỏ gán shipper khi đơn hàng ở trạng thái ready hoặc delivering" });
       }
-      if (order.status !== 'ready') {
-        return res.status(400).json({ error: 'Chỉ có thể gán shipper khi đơn hàng ở trạng thái ready' });
+      if (assignShipperId === null) {
+        // Bỏ gán shipper
+        order.shipperAssigned = null;
+        if (order.status === "delivering") {
+          order.status = "ready"; // Quay lại trạng thái ready nếu bỏ gán shipper
+        }
+      } else {
+        // Gán shipper mới, kiểm tra assignShipperId là ObjectId của user có role: 'shipper'
+        const shipper = await User.findOne({ _id: assignShipperId, role: "shipper" });
+        if (!shipper) {
+          return res.status(404).json({ error: "Không tìm thấy shipper với ID này hoặc user không phải shipper" });
+        }
+        order.shipperAssigned = shipper._id; // Gán ObjectId của shipper
+        order.status = "delivering"; // Chuyển trạng thái sang delivering
       }
-      order.shipperAssigned = shipper._id;
-      order.status = 'delivering';
-    } else {
-      if (!validTransitions[order.status].includes(status)) {
-        return res.status(400).json({ error: `Không thể chuyển từ ${order.status} sang ${status}` });
-      }
+    }
+
+    // Cập nhật trạng thái đơn hàng nếu có status
+    if (status) {
       order.status = status;
-      if (status === 'cancelled') {
-        order.cancelReason = cancelReason || 'Không có lý do';
+      if (status === "cancelled") {
+        order.cancelReason = cancelReason || "Không có lý do";
+        order.shipperAssigned = null; // Bỏ gán shipper nếu hủy đơn
       }
     }
+
+    // Kiểm tra xem có thay đổi gì để lưu không
+    if (!status && assignShipperId === undefined) {
+      return res.status(400).json({ error: "Yêu cầu phải có status hoặc assignShipperId" });
+    }
+
     await order.save();
     res.status(200).json({
-      message: 'Cập nhật trạng thái thành công',
-      order: { ...order._doc, customerName: order.userId?.fullname || 'Unknown' }
+      message: "Cập nhật trạng thái thành công",
+      order: { ...order._doc, customerName: order.userId?.fullname || "Unknown" },
     });
   } catch (err) {
-    console.error('[updateOrderStatusByStaff]', err);
-    res.status(500).json({ error: 'Không thể cập nhật trạng thái đơn hàng' });
+    console.error("[updateOrderStatusByStaff]", err);
+    res.status(500).json({ error: "Không thể cập nhật trạng thái đơn hàng" });
   }
 };
 
@@ -341,7 +352,7 @@ exports.getStaffStatistics = async (req, res) => {
 // Staff lấy danh sách shipper
 exports.getAvailableShippers = async (req, res) => {
   try {
-    const shippers = await User.find({ role: 'shipper', status: 'available' }).select('staffId fullname phone');
+    const shippers = await User.find({ role: 'shipper' }).select('staffId fullname phone');
     res.status(200).json(shippers);
   } catch (err) {
     console.error('[getAvailableShippers]', err);
