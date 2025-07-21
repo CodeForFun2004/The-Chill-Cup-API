@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const Counter = require('./counter.model');
 
 const userSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true },
@@ -18,7 +19,7 @@ const userSchema = new mongoose.Schema({
 
   staffId: {
     type: String,
-    unique: true,
+    // unique: true,
     sparse: true,
     default: null
   },
@@ -70,32 +71,37 @@ userSchema.pre('save', async function (next) {
       this.password = await bcrypt.hash(this.password, salt);
     }
 
-    // ✅ Sinh staffId tự động nếu là nhân viên hoặc shipper
-    if ((this.role === 'staff' || this.role === 'shipper') && !this.staffId) {
-      const User = mongoose.model('User');
+    // ✅ Tạo prefix theo role
+    let prefix = null;
+    let counterName = null;
 
-      // Tìm user cuối cùng là staff hoặc shipper có staffId
-      const lastStaff = await User.findOne({
-        role: { $in: ['staff', 'shipper'] },
-        staffId: { $ne: null }
-      }).sort({ createdAt: -1 }).lean();
-
-      if (lastStaff && lastStaff.staffId) {
-        const lastNum = parseInt(lastStaff.staffId.replace('nv', ''), 10);
-        const newNum = (lastNum + 1).toString().padStart(3, '0');
-        this.staffId = `nv${newNum}`;
-      } else {
-        this.staffId = 'nv001';
-      }
+    if (['staff', 'shipper'].includes(this.role)) {
+      prefix = 'nv';
+      counterName = 'staffId';
+    } else if (this.role === 'customer') {
+      prefix = 'cus';
+      counterName = 'customerId';
+    } else if (this.role === 'admin') {
+      prefix = 'ad';
+      counterName = 'adminId';
     }
 
+    // ✅ Tăng counter nếu chưa có staffId
+    if (prefix && !this.staffId) {
+      const counter = await Counter.findByIdAndUpdate(
+        counterName,
+        { $inc: { seq: 1 } },
+        { new: true, upsert: true }
+      );
+
+      this.staffId = `${prefix}${counter.seq.toString().padStart(4, '0')}`;
+    }
 
     next();
   } catch (err) {
     next(err);
   }
 });
-
 
 // ✅ Method to compare passwords
 userSchema.methods.matchPassword = async function (enteredPassword) {
