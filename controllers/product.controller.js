@@ -19,9 +19,11 @@ exports.createProduct = async (req, res) => {
       categoryId: { $in: categoryIds },
     });
     if (existing) {
+
       return res.status(400).json({
         error: "Sản phẩm đã tồn tại trong cửa hàng này và danh mục này",
       });
+
     }
 
     // Tìm category "Món Mới Phải Thử"
@@ -61,6 +63,7 @@ exports.createProduct = async (req, res) => {
 exports.getAllProducts = async (req, res) => {
   try {
     const products = await Product.find()
+      .populate("sizeOptions")
       .populate("toppingOptions") // ref: Topping
       .populate("storeId") // ref: Store
       .populate("categoryId"); // ref: Category
@@ -74,6 +77,7 @@ exports.getAllProducts = async (req, res) => {
 exports.getProductById = async (req, res) => {
   try {
     const product = await Product.findById(req.params.id)
+    .populate("sizeOptions")
       .populate("toppingOptions")
       .populate("storeId")
       .populate("categoryId");
@@ -207,6 +211,7 @@ exports.banMultipleProducts = async (req, res) => {
     res.status(200).json({
       message: `Đã ${statusText} ${productIds.length} sản phẩm thành công`,
     });
+
   } catch (err) {
     console.error("[Ban Multiple Products]", err);
     res.status(500).json({ error: "Không thể cập nhật trạng thái sản phẩm" });
@@ -234,9 +239,11 @@ exports.searchProductByName = async (req, res) => {
 // getProductById
 exports.getProductById = async (req, res) => {
   try {
-    const product = await Product.findById(req.params.id).populate(
-      "toppingOptions storeId categoryId"
-    );
+    const product = await Product.findById(req.params.id)
+      .populate("sizeOptions")
+      .populate("toppingOptions")
+      .populate("storeId")
+      .populate("categoryId");
 
     if (!product) {
       return res.status(404).json({ error: "Product not found" });
@@ -267,8 +274,4 @@ exports.filterByCategory = async (req, res) => {
       .json({ message: "Lỗi khi lọc theo category", error: error.message });
   }
 };
-
-
-
-
 
