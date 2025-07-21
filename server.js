@@ -50,7 +50,7 @@ app.get('/', (req, res) => {
 
 const authRoutes = require('./routes/auth.routes');   // authRoutes phải gọi sau .env
 app.use('/api/auth', authRoutes);
-app.use('/api/users',userRoutes)
+app.use('/api/users',userRoutes);
 app.use('/api/toppings', toppingRoutes);
 app.use('/api/sizes', sizeRoutes);
 app.use('/api/products', productRoutes);
@@ -67,6 +67,8 @@ app.use('/api/admin/dashboard', adminDashboardRoutes);
 
 
 const PORT = process.env.PORT || 8080;
+
 app.listen(PORT, '0.0.0.0', () =>{
    console.log(`🚀 HHHHHHH Server running on http://localhost:${PORT}`)
 });
+

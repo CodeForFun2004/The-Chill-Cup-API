@@ -19,11 +19,11 @@ exports.createProduct = async (req, res) => {
       categoryId: { $in: categoryIds },
     });
     if (existing) {
-      return res
-        .status(400)
-        .json({
-          error: "Sản phẩm đã tồn tại trong cửa hàng này và danh mục này",
-        });
+
+      return res.status(400).json({
+        error: "Sản phẩm đã tồn tại trong cửa hàng này và danh mục này",
+      });
+
     }
 
     // Tìm category "Món Mới Phải Thử"
@@ -208,11 +208,10 @@ exports.banMultipleProducts = async (req, res) => {
     );
 
     const statusText = isBanned ? "banned" : "unbanned";
-    res
-      .status(200)
-      .json({
-        message: `Đã ${statusText} ${productIds.length} sản phẩm thành công`,
-      });
+    res.status(200).json({
+      message: `Đã ${statusText} ${productIds.length} sản phẩm thành công`,
+    });
+
   } catch (err) {
     console.error("[Ban Multiple Products]", err);
     res.status(500).json({ error: "Không thể cập nhật trạng thái sản phẩm" });
@@ -246,7 +245,6 @@ exports.getProductById = async (req, res) => {
       .populate("storeId")
       .populate("categoryId");
 
-
     if (!product) {
       return res.status(404).json({ error: "Product not found" });
     }
@@ -276,3 +274,4 @@ exports.filterByCategory = async (req, res) => {
       .json({ message: "Lỗi khi lọc theo category", error: error.message });
   }
 };
+

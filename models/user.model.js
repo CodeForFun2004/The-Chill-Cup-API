@@ -22,7 +22,7 @@ const userSchema = new mongoose.Schema({
     sparse: true,
     default: null
   },
-   // đối với staff/ shipper
+  // đối với staff/ shipper
   status: {
     type: String,
     enum: ['available', 'assigned'],
@@ -30,11 +30,23 @@ const userSchema = new mongoose.Schema({
       return (this.role === 'staff' || this.role === 'shipper') ? 'available' : undefined;
     }
   },
-  
 
   isBanned: {
     type: Boolean,
     default: false
+  },
+
+  // Thêm trường lưu lý do khóa
+  banReason: {
+    type: String,
+    default: null
+  },
+
+  // Thêm trường lưu thời gian hết hạn tạm ngưng
+  banExpires: {
+    type: Date,
+    default: null
+    // Optional, để null nếu khóa vĩnh viễn
   },
 
   googleId: { type: String },
@@ -59,23 +71,23 @@ userSchema.pre('save', async function (next) {
     }
 
     // ✅ Sinh staffId tự động nếu là nhân viên hoặc shipper
-if ((this.role === 'staff' || this.role === 'shipper') && !this.staffId) {
-  const User = mongoose.model('User');
+    if ((this.role === 'staff' || this.role === 'shipper') && !this.staffId) {
+      const User = mongoose.model('User');
 
-  // Tìm user cuối cùng là staff hoặc shipper có staffId
-  const lastStaff = await User.findOne({
-    role: { $in: ['staff', 'shipper'] },
-    staffId: { $ne: null }
-  }).sort({ createdAt: -1 }).lean();
+      // Tìm user cuối cùng là staff hoặc shipper có staffId
+      const lastStaff = await User.findOne({
+        role: { $in: ['staff', 'shipper'] },
+        staffId: { $ne: null }
+      }).sort({ createdAt: -1 }).lean();
 
-  if (lastStaff && lastStaff.staffId) {
-    const lastNum = parseInt(lastStaff.staffId.replace('nv', ''), 10);
-    const newNum = (lastNum + 1).toString().padStart(3, '0');
-    this.staffId = `nv${newNum}`;
-  } else {
-    this.staffId = 'nv001';
-  }
-}
+      if (lastStaff && lastStaff.staffId) {
+        const lastNum = parseInt(lastStaff.staffId.replace('nv', ''), 10);
+        const newNum = (lastNum + 1).toString().padStart(3, '0');
+        this.staffId = `nv${newNum}`;
+      } else {
+        this.staffId = 'nv001';
+      }
+    }
 
 
     next();
