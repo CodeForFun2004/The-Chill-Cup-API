@@ -9,18 +9,19 @@ const User = require("../models/user.model");
 const moment = require('moment-timezone');
 const mongoose = require('mongoose');
 
+// Assuming you have dotenv or similar setup for environment variables
+require('dotenv').config();
 
-const { generateVietQR } = require("../services/payment.service");
+const { generateVietQR } = require("../services/payment.service"); // Ensure this path is correct
 
 
-
-// thanh toán COD/ VietQR
+// --- 📦 Order Creation and Payment Handling (User Role) ---
 exports.createOrder = async (req, res) => {
   try {
     const userId = req.user._id;
     const { deliveryAddress, phone, paymentMethod, storeId } = req.body;
 
-    // ✅ Check store tồn tại và active
+    // ✅ Check if store exists and is active
     const store = await Store.findById(storeId);
     if (!store || !store.isActive) {
       return res
@@ -28,7 +29,7 @@ exports.createOrder = async (req, res) => {
         .json({ error: "Cửa hàng không tồn tại hoặc đã ngưng hoạt động" });
     }
 
-    // ✅ Lấy cart
+    // ✅ Get cart and populate items
     const cart = await Cart.findOne({ userId }).populate({
       path: "cartItems",
       populate: [{ path: "productId" }, { path: "toppings" }],
@@ -38,7 +39,7 @@ exports.createOrder = async (req, res) => {
       return res.status(400).json({ error: "Giỏ hàng trống" });
     }
 
-    // ✅ Nếu có mã giảm giá, kiểm tra thông tin
+    // ✅ Check discount code if applied
     let appliedDiscount = null;
     if (cart.promoCode) {
       appliedDiscount = await Discount.findOne({
@@ -49,37 +50,26 @@ exports.createOrder = async (req, res) => {
       }
     }
 
-    // ✅ Tính subtotal KHÔNG gồm deliveryFee, đã trừ discount
+    // ✅ Calculate subtotal (excluding delivery fee, after discount)
     const subtotalWithoutDelivery = cart.total - cart.deliveryFee;
-    console.log(
-      "=== [DEBUG] Tổng cart (đã gồm giảm giá + phí ship): ",
-      cart.total
-    );
+    console.log("=== [DEBUG] Tổng cart (đã gồm giảm giá + phí ship): ", cart.total);
     console.log("=== [DEBUG] Phí giao hàng: ", cart.deliveryFee);
-    console.log(
-      "=== [DEBUG] Subtotal chưa gồm phí giao hàng (đã trừ discount): ",
-      subtotalWithoutDelivery
-    );
+    console.log("=== [DEBUG] Subtotal chưa gồm phí giao hàng (đã trừ discount): ", subtotalWithoutDelivery);
 
-    // ✅ Tax = 10% của subtotalWithoutDelivery
+    // ✅ Calculate Tax (10% of subtotalWithoutDelivery)
     const tax = Math.round(subtotalWithoutDelivery * 0.1);
     console.log("=== [DEBUG] Thuế 10% tính trên subtotal: ", tax);
 
-    // ✅ Total = subtotalWithoutDelivery + tax + deliveryFee
+    // ✅ Calculate Final Total (cart.total + tax)
+    // Assuming cart.total already includes deliveryFee and discount
     const finalTotal = cart.total + tax;
-    console.log(
-      "=== [DEBUG] Tổng tiền cuối cùng (cart.total + tax): ",
-      finalTotal
-    );
+    console.log("=== [DEBUG] Tổng tiền cuối cùng (cart.total + tax): ", finalTotal);
 
-    // ✅ Debug thêm các thông tin liên quan
+    // ✅ Debug other relevant info
     console.log("=== [DEBUG] Discount áp dụng: ", cart.discount || 0);
-    console.log(
-      "=== [DEBUG] Promo Code: ",
-      cart.promoCode || "Không áp dụng mã"
-    );
+    console.log("=== [DEBUG] Promo Code: ", cart.promoCode || "Không áp dụng mã");
 
-    // ✅ Debug danh sách sản phẩm
+    // ✅ Debug item list
     cart.cartItems.forEach((item, index) => {
       console.log(
         `=== [DEBUG] Item ${index + 1}: ${item.productId?.name}, Số lượng: ${
@@ -88,160 +78,23 @@ exports.createOrder = async (req, res) => {
       );
     });
 
-    // ✅ Map items
+    // ✅ Map items for the order
     const items = cart.cartItems.map((item) => ({
       productId: item.productId?._id,
       name: item.productId?.name,
       size: item.size,
       toppings: item.toppings.map((t) => ({ id: t._id, name: t.name })),
       quantity: item.quantity,
-      price: item.price, // snapshot giá đã tính sẵn từ cart
+      price: item.price, // Snapshot of the price already calculated from cart
     }));
 
     // Generate order number early for consistent use
     const orderNumber = generateOrderNumber();
 
-    // ✅ Tạo order
+    // ✅ Create the order
     const order = await Order.create({
       userId,
-      storeId, // 🔥 gán storeId vào order
-      orderNumber: orderNumber, // Sử dụng orderNumber đã tạo sớm
-      items,
-      subtotal: subtotalWithoutDelivery,
-      discount: cart.discount || 0,
-      tax,
-      total: finalTotal,
-      deliveryFee: cart.deliveryFee,
-      deliveryAddress,
-      phone,
-      paymentMethod,
-      deliveryTime: "25-35 phút",
-      appliedPromoCode: appliedDiscount ? appliedDiscount.promotionCode : null,
-    });
-
-    // ✅ Xoá cart items
-    const deleteResult = await CartItem.deleteMany({
-      _id: { $in: cart.cartItems.map((item) => item._id) },
-    });
-    console.log(`Đã xoá ${deleteResult.deletedCount} CartItems`);
-
-    // ✅ Xoá cart
-    await Cart.deleteOne({ userId });
-    console.log(`Đã xoá Cart của user ${userId}`);
-
-    // ✅ Cộng điểm loyalty (1 điểm / 1.000đ, tính theo finalTotal)
-    const earnedPoints = Math.floor(finalTotal / 1000);
-    await LoyaltyPoint.findOneAndUpdate(
-      { userId },
-      {
-        $inc: { totalPoints: earnedPoints },
-        $push: { history: { orderId: order._id, pointsEarned: earnedPoints } },
-      },
-      { upsert: true, new: true }
-    );
-
-    // --- LOGIC XỬ LÝ PHƯƠNG THỨC THANH TOÁN ---
-    if (paymentMethod === "vietqr") {
-      // Thay YOUR_BANK_CODE và YOUR_ACCOUNT_NUMBER bằng thông tin ngân hàng thực tế của bạn
-      const bankCode = process.env.MY_BANK_CODE; // Ví dụ: "970418" (BIDV), "970422" (MBBank)
-      const accountNumber = process.env.MY_ACCOUNT_NUMBER; // Số tài khoản nhận tiền
-
-      const qrCodeUrl = await generateVietQR(
-        bankCode,
-        accountNumber,
-        finalTotal,
-        order.orderNumber // Sử dụng order.orderNumber để tạo nội dung cho QR
-      );
-      return res.status(201).json({
-        message: "Đặt hàng thành công 🎉. Vui lòng quét mã QR để thanh toán.",
-        order,
-        qrCodeUrl, // Trả về URL của mã QR
-      });
-    } else if (paymentMethod === "cod") {
-      return res
-        .status(201)
-        .json({ message: "Đặt hàng thành công 🎉. Thanh toán khi nhận hàng.", order });
-    } else {
-      // Trường hợp các phương thức thanh toán khác nếu có
-      return res.status(201).json({ message: "Đặt hàng thành công 🎉", order });
-    }
-  } catch (err) {
-    console.error("[Create Order]", err);
-    res.status(500).json({ error: "Không thể tạo đơn hàng" });
-  }
-};
-  
-
-  exports.getOrderById = async (req, res) => {
-    try {
-      const order = await Order.findById(req.params.orderId).populate('items.productId');
-      if (!order) {
-        return res.status(404).json({ error: 'Không tìm thấy đơn hàng' });
-
-      }
-    }
-
-    // ✅ Tính subtotal KHÔNG gồm deliveryFee, đã trừ discount
-    const subtotalWithoutDelivery = cart.total - cart.deliveryFee;
-    console.log(
-      "=== [DEBUG] Tổng cart (đã gồm giảm giá + phí ship): ",
-      cart.total
-    );
-    console.log("=== [DEBUG] Phí giao hàng: ", cart.deliveryFee);
-    console.log(
-      "=== [DEBUG] Subtotal chưa gồm phí giao hàng (đã trừ discount): ",
-      subtotalWithoutDelivery
-    );
-
-    // ✅ Tax = 10% của subtotalWithoutDelivery
-    const tax = Math.round(subtotalWithoutDelivery * 0.1);
-    console.log("=== [DEBUG] Thuế 10% tính trên subtotal: ", tax);
-
-    // ✅ Total = subtotalWithoutDelivery + tax + deliveryFee
-    // Note: The previous logic had `finalTotal = cart.total + tax;` which might double-count deliveryFee if cart.total already includes it.
-    // Based on `subtotalWithoutDelivery = cart.total - cart.deliveryFee;`, `cart.total` seems to include deliveryFee.
-    // So, `finalTotal` should be `subtotalWithoutDelivery + tax + cart.deliveryFee;`
-    // Or, if `cart.total` is the total *before* tax but *after* discount and *including* delivery, then `cart.total + tax` is correct.
-    // Sticking to the provided logic `finalTotal = cart.total + tax;` for now as it was explicitly kept.
-    const finalTotal = cart.total + tax;
-    console.log(
-      "=== [DEBUG] Tổng tiền cuối cùng (cart.total + tax): ",
-      finalTotal
-    );
-
-    // ✅ Debug thêm các thông tin liên quan
-    console.log("=== [DEBUG] Discount áp dụng: ", cart.discount || 0);
-    console.log(
-      "=== [DEBUG] Promo Code: ",
-      cart.promoCode || "Không áp dụng mã"
-    );
-
-    // ✅ Debug danh sách sản phẩm
-    cart.cartItems.forEach((item, index) => {
-      console.log(
-        `=== [DEBUG] Item ${index + 1}: ${item.productId?.name}, Số lượng: ${
-          item.quantity
-        }, Giá đã tính: ${item.price}`
-      );
-    });
-
-    // ✅ Map items
-    const items = cart.cartItems.map(item => ({
-      productId: item.productId?._id,
-      name: item.productId?.name,
-      size: item.size,
-      toppings: item.toppings.map(t => ({ id: t._id, name: t.name })),
-      quantity: item.quantity,
-      price: item.price // snapshot giá đã tính sẵn từ cart
-    }));
-
-    // Generate order number early for consistent use across the order creation process
-    const orderNumber = generateOrderNumber();
-
-    // ✅ Tạo order
-    const order = await Order.create({
-      userId,
-      storeId, // 🔥 gán storeId vào order
+      storeId,
       orderNumber: orderNumber,
       items,
       subtotal: subtotalWithoutDelivery,
@@ -252,63 +105,67 @@ exports.createOrder = async (req, res) => {
       deliveryAddress,
       phone,
       paymentMethod,
-      deliveryTime: '25-35 phút',
-      appliedPromoCode: appliedDiscount ? appliedDiscount.promotionCode : null
+      deliveryTime: "25-35 phút", // This is an estimated time, could be dynamic
+      appliedPromoCode: appliedDiscount ? appliedDiscount.promotionCode : null,
     });
 
-    // ✅ Xoá cart items
-    const deleteResult = await CartItem.deleteMany({ _id: { $in: cart.cartItems.map(item => item._id) } });
+    // ✅ Delete cart items
+    const deleteResult = await CartItem.deleteMany({
+      _id: { $in: cart.cartItems.map((item) => item._id) },
+    });
     console.log(`Đã xoá ${deleteResult.deletedCount} CartItems`);
 
-    // ✅ Xoá cart
+    // ✅ Delete the cart
     await Cart.deleteOne({ userId });
     console.log(`Đã xoá Cart của user ${userId}`);
 
-    // ✅ Cộng điểm loyalty (1 điểm / 1.000đ, tính theo finalTotal)
+    // ✅ Award loyalty points (1 point / 1.000đ, based on finalTotal)
     const earnedPoints = Math.floor(finalTotal / 1000);
     await LoyaltyPoint.findOneAndUpdate(
       { userId },
       {
         $inc: { totalPoints: earnedPoints },
-        // ✅ Fixed: Use order._id directly, removed 'session' as it's not part of a transaction here
         $push: { history: { orderId: order._id, pointsEarned: earnedPoints } },
       },
       { upsert: true, new: true }
     );
 
-    // --- LOGIC XỬ LÝ PHƯƠNG THỨC THANH TOÁN ---
-    if (paymentMethod === "VietQR") {
-      // Thay YOUR_BANK_CODE và YOUR_ACCOUNT_NUMBER bằng thông tin ngân hàng thực tế của bạn
-      const bankCode = "YOUR_BANK_CODE"; // Ví dụ: "970418" (BIDV), "970422" (MBBank)
-      const accountNumber = "YOUR_ACCOUNT_NUMBER"; // Số tài khoản nhận tiền
+    // --- Handle Payment Method Specific Responses ---
+    if (paymentMethod.toLowerCase() === "vietqr") { // ✅ Consistent lowercase comparison
+      const bankCode = process.env.MY_BANK_CODE; // Get from environment variables
+      const accountNumber = process.env.MY_ACCOUNT_NUMBER; // Get from environment variables
+
+      if (!bankCode || !accountNumber) {
+          console.warn("VietQR bank code or account number not configured in environment variables.");
+          return res.status(500).json({ error: "Lỗi cấu hình thanh toán VietQR." });
+      }
 
       const qrCodeUrl = await generateVietQR(
         bankCode,
         accountNumber,
         finalTotal,
-        order.orderNumber // Sử dụng order.orderNumber để tạo nội dung cho QR
+        order.orderNumber
       );
       return res.status(201).json({
         message: "Đặt hàng thành công 🎉. Vui lòng quét mã QR để thanh toán.",
         order,
-        qrCodeUrl, // Trả về URL của mã QR
+        qrCodeUrl, // Return the QR code URL
       });
-    } else if (paymentMethod === "COD") {
+    } else if (paymentMethod.toLowerCase() === "cod") { // ✅ Consistent lowercase comparison
       return res
         .status(201)
         .json({ message: "Đặt hàng thành công 🎉. Thanh toán khi nhận hàng.", order });
     } else {
-      // Trường hợp các phương thức thanh toán khác nếu có
+      // Fallback for any other payment methods
       return res.status(201).json({ message: "Đặt hàng thành công 🎉", order });
     }
-
   } catch (err) {
-    console.error('[Create Order] ❌ ERROR:', err);
-    res.status(500).json({ error: 'Không thể tạo đơn hàng' });
+    console.error("[Create Order] ❌ ERROR:", err);
+    res.status(500).json({ error: "Không thể tạo đơn hàng" });
   }
 };
 
-
+// --- 🔎 Get Order Details by ID ---
 exports.getOrderById = async (req, res) => {
   try {
     const order = await Order.findById(req.params.orderId).populate('items.productId');
@@ -322,16 +179,16 @@ exports.getOrderById = async (req, res) => {
   }
 };
 
-// 1️⃣ user role xem lịch sử đơn
+// --- 📜 User Role: Get Order History ---
 exports.getUserOrders = async (req, res) => {
   try {
     const userId = req.user._id;
     const { status } = req.query;
 
     const filter = { userId };
-    if (status) filter.status = status;
+    if (status) filter.status = status; // Filter by status if provided
 
-    const orders = await Order.find(filter).sort({ createdAt: -1 });
+    const orders = await Order.find(filter).sort({ createdAt: -1 }); // Sort by newest first
     res.status(200).json(orders);
   } catch (err) {
     console.error('[getUserOrders] ❌ ERROR:', err);
@@ -339,15 +196,14 @@ exports.getUserOrders = async (req, res) => {
   }
 };
 
-
-// 2️⃣ Admin xem toàn bộ đơn
+// --- 💻 Admin Role: Get All Orders ---
 exports.getAllOrders = async (req, res) => {
   try {
     const { status } = req.query;
     const filter = {};
-    if (status) filter.status = status;
+    if (status) filter.status = status; // Filter by status if provided
 
-    const orders = await Order.find(filter).sort({ createdAt: -1 });
+    const orders = await Order.find(filter).sort({ createdAt: -1 }); // Sort by newest first
     res.status(200).json(orders);
   } catch (err) {
     console.error('[getAllOrders] ❌ ERROR:', err);
@@ -355,22 +211,24 @@ exports.getAllOrders = async (req, res) => {
   }
 };
 
-
+// --- 📈 Admin Role: Get All Orders with Flexible Filters ---
 exports.getAllOrdersFlexible = async (req, res) => {
   try {
     const { status, startDate, endDate, userId } = req.query;
 
     const filter = {};
 
+    // Filter by status (can be multiple, comma-separated)
     if (status && status !== 'all') {
       const statusArray = status.split(',').map(s => s.trim());
       filter.status = { $in: statusArray };
     }
 
+    // Filter by date range (createdAt)
     if (startDate) {
       const start = moment.tz(startDate, 'YYYY-MM-DD', 'Asia/Ho_Chi_Minh').startOf('day').toDate();
       console.log('⏰ Start Date (Asia/Ho_Chi_Minh):', start);
-      filter.createdAt = { $gte: start };
+      filter.createdAt = { ...filter.createdAt, $gte: start }; // Add to existing createdAt filter
     }
 
     if (endDate) {
@@ -382,6 +240,7 @@ exports.getAllOrdersFlexible = async (req, res) => {
       };
     }
 
+    // Filter by specific user ID
     if (userId) {
       if (!mongoose.Types.ObjectId.isValid(userId)) {
         return res.status(400).json({ error: 'userId không hợp lệ' });
@@ -390,7 +249,7 @@ exports.getAllOrdersFlexible = async (req, res) => {
       console.log('📌 userId Filter:', filter.userId);
     }
 
-    // Log tất cả đơn hàng với userId (for debugging purposes, can be removed in production)
+    // Optional: Log all orders for debugging (can be removed in production)
     const allOrders = await Order.find({}, { createdAt: 1, orderNumber: 1, userId: 1 }).sort({ createdAt: -1 });
     console.log('📋 All Orders (for debug):', allOrders.map(order => ({
       orderNumber: order.orderNumber,
@@ -409,28 +268,29 @@ exports.getAllOrdersFlexible = async (req, res) => {
   }
 };
 
+// --- 👨‍💻 Admin Role: Update Order Status ---
 exports.updateOrderStatusByAdmin = async (req, res) => {
-  try { // ✅ Added try-catch block
+  try {
     const { orderId } = req.params;
     const { status, cancelReason } = req.body;
 
     const validStatuses = ['pending', 'processing', 'preparing', 'ready', 'delivering', 'completed', 'cancelled'];
 
     if (!validStatuses.includes(status)) {
-      return res.status(400).json({ message: 'Invalid status value' }); // ✅ Return response directly
+      return res.status(400).json({ message: 'Invalid status value' });
     }
 
     const order = await Order.findById(orderId);
 
     if (!order) {
-      return res.status(404).json({ message: 'Order not found' }); // ✅ Return response directly
+      return res.status(404).json({ message: 'Order not found' });
     }
 
     order.status = status;
 
     if (status === 'cancelled') {
       if (!cancelReason) {
-        return res.status(400).json({ message: 'Cancel reason is required for cancellation' }); // ✅ Return response directly
+        return res.status(400).json({ message: 'Cancel reason is required for cancellation' });
       }
       order.cancelReason = cancelReason;
     }
@@ -448,12 +308,12 @@ exports.updateOrderStatusByAdmin = async (req, res) => {
   }
 };
 
-// 3️⃣ Staff xem + update trạng thái đơn
+// --- 👩‍💼 Staff Role: Get Orders Assigned to Their Store ---
 exports.getStaffOrders = async (req, res) => {
   try {
-    const staffId = req.user._id; // lấy từ protect middleware
+    const staffId = req.user._id; // Get staff ID from authenticated user
 
-    // 1️⃣ Tìm store mà staff này quản lý
+    // 1️⃣ Find the store managed by this staff
     const store = await Store.findOne({ staff: staffId });
     if (!store) {
       return res.status(404).json({ error: 'Nhân viên chưa được gán quản lý cửa hàng nào' });
@@ -461,13 +321,13 @@ exports.getStaffOrders = async (req, res) => {
 
     const { status } = req.query;
 
-    // 2️⃣ Lọc đơn hàng theo storeId + status
+    // 2️⃣ Filter orders by storeId and active statuses
     const filter = {
       storeId: store._id,
-      status: { $in: ['pending', 'processing', 'preparing', 'ready', 'delivering'] }
+      status: { $in: ['pending', 'processing', 'preparing', 'ready', 'delivering'] } // Default statuses for staff to manage
     };
 
-    if (status) filter.status = status; // nếu có query status cụ thể
+    if (status) filter.status = status; // Override with specific status if provided in query
 
     const orders = await Order.find(filter).sort({ createdAt: -1 });
 
@@ -478,24 +338,24 @@ exports.getStaffOrders = async (req, res) => {
   }
 };
 
+// --- 👩‍💼 Staff Role: Update Order Status and Assign Shipper ---
 exports.updateOrderStatusByStaff = async (req, res) => {
   try {
     const { orderId } = req.params;
     const { status, cancelReason, assignShipperId } = req.body;
-    // ✅ Fixed: Use req.user._id for staffId consistency
-    const staffId = req.user._id;
+    const staffId = req.user._id; // Get staff ID from authenticated user
 
     const order = await Order.findById(orderId);
     if (!order) return res.status(404).json({ error: 'Đơn hàng không tồn tại' });
 
-    // Ensure the staff is authorized to update this order (e.g., belongs to their store)
+    // Ensure the staff is authorized to update this order (i.e., it belongs to their store)
     const staffStore = await Store.findOne({ staff: staffId });
     if (!staffStore || order.storeId.toString() !== staffStore._id.toString()) {
         return res.status(403).json({ error: 'Bạn không có quyền cập nhật đơn hàng này.' });
     }
 
     if (assignShipperId) {
-      // 🔥 Tìm userId của shipper dựa trên staffId (vd: nv005)
+      // Find the shipper user by their staffId (e.g., 'nv005') and role
       const shipper = await User.findOne({ staffId: assignShipperId, role: 'shipper' });
       if (!shipper) {
         return res.status(404).json({ error: 'Không tìm thấy shipper với mã nhân viên này' });
@@ -504,23 +364,20 @@ exports.updateOrderStatusByStaff = async (req, res) => {
       // Automatically set status to 'delivering' when a shipper is assigned
       order.status = 'delivering';
     } else {
-      // Only allow specific status transitions by staff if needed
-      const validStaffUpdateStatuses = ['preparing', 'ready', 'cancelled']; // Staff can set these
+      // Only allow specific status transitions by staff
+      const validStaffUpdateStatuses = ['preparing', 'ready', 'cancelled']; // Staff can directly set these statuses
       if (!validStaffUpdateStatuses.includes(status)) {
         return res.status(400).json({ error: 'Trạng thái không hợp lệ để cập nhật bởi nhân viên.' });
       }
       order.status = status;
       if (status === 'cancelled') {
         order.cancelReason = cancelReason || 'Không có lý do';
-        order.shipperAssigned = null; // Clear shipper if cancelled
+        order.shipperAssigned = null; // Clear assigned shipper if order is cancelled
       }
     }
 
-    // `staffId` field on order might track who last updated it.
-    // If your Order model has a `lastUpdatedByStaff` field, use that.
-    // Otherwise, this line might be redundant if `staffId` is meant to be the store's staff array.
-    // Assuming `staffId` on Order model is for tracking the *updater*.
-    order.staffId = staffId; // Assigning the staff's _id to the order's staffId field
+    // Assigning the staff's _id to the order's staffId field (if your Order model tracks the updater)
+    order.staffId = staffId;
 
     await order.save();
 
@@ -531,13 +388,13 @@ exports.updateOrderStatusByStaff = async (req, res) => {
   }
 };
 
-// 4️⃣ Shipper xem + cập nhật đơn assigned
+// --- 🚚 Shipper Role: Get Assigned Orders ---
 exports.getShipperOrders = async (req, res) => {
   try {
     const shipperObjectId = req.user._id;
 
     const orders = await Order.find({ shipperAssigned: shipperObjectId })
-      .populate('shipperAssigned', 'fullname staffId phone') // optional: populate shipper details
+      .populate('shipperAssigned', 'fullname staffId phone') // Optional: populate shipper details for response
       .sort({ createdAt: -1 });
 
     res.status(200).json(orders);
@@ -547,17 +404,19 @@ exports.getShipperOrders = async (req, res) => {
   }
 };
 
-
+// --- 🚚 Shipper Role: Mark Delivery as Complete ---
 exports.completeDeliveryByShipper = async (req, res) => {
   try {
     const { orderId } = req.params;
     const shipperObjectId = req.user._id;
 
+    // Find the order, ensuring it's assigned to this shipper and is currently 'delivering'
     const order = await Order.findOne({
       _id: orderId,
       shipperAssigned: shipperObjectId,
-      status: 'delivering' // Ensure only 'delivering' orders can be completed by shipper
+      status: 'delivering'
     });
+
     if (!order) {
       return res.status(404).json({ error: "Đơn hàng không thuộc shipper này hoặc không trong trạng thái giao hàng" });
     }
