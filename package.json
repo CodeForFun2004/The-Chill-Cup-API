@@ -33,9 +33,9 @@
     "nodemailer": "^7.0.4",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
+    "qrcode": "^1.5.1",
     "socket.io": "^4.8.1",
-    "socket.io-client": "^4.8.1",
-    "qrcode": "^1.5.1"
+    "socket.io-client": "^4.8.1"
   },
   "devDependencies": {
     "nodemon": "^3.1.10"
