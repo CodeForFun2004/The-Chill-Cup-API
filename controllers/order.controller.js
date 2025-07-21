@@ -193,7 +193,7 @@ exports.getStaffOrders = async (req, res) => {
     const staffId = req.user._id; // lấy từ protect middleware
 
     // 1️⃣ Tìm store mà staff này quản lý
-    const store = await Store.findOne({ staff: staffId });
+    const store = await Store.findOne({ "staff._id": staffId });
     if (!store) {
       return res
         .status(404)
@@ -206,7 +206,7 @@ exports.getStaffOrders = async (req, res) => {
     const filter = {
       storeId: store._id,
       status: {
-        $in: ["pending", "processing", "preparing", "ready", "delivering"],
+        $in: ["pending", "processing", "preparing", "ready", "delivering", "completed", "cancelled"],
       },
     };
 
@@ -220,6 +220,24 @@ exports.getStaffOrders = async (req, res) => {
     res
       .status(500)
       .json({ error: "Không thể lấy danh sách đơn hàng cho nhân viên" });
+  }
+};
+
+// 🚚 Lấy danh sách shipper có sẵn
+exports.getAvailableShippers = async (req, res) => {
+  try {
+    const shippers = await User.find({ 
+      role: "shipper",
+      status: { $in: ["available", "assigned"] }
+    }).select("fullname staffId status").sort({ fullname: 1 });
+
+    
+    if(!shippers){
+      res.status(404).json({message: "Không tìm thấy shippertrong database"});
+    } else res.status(200).json(shippers);
+  } catch (err) {
+    console.error("[getAvailableShippers]", err);
+    res.status(500).json({ error: "Không thể lấy danh sách shipper" });
   }
 };
 

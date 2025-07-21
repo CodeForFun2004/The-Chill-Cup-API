@@ -16,7 +16,7 @@ router.get('/admin', protect, isAdmin, orderController.getAllOrders);
 // // STAFF
 router.get('/staff', protect, isStaff, orderController.getStaffOrders);
 router.put('/staff/:orderId', protect, isStaff, orderController.updateOrderStatusByStaff);
-router.get('/staff/statistics', protect, isStaff, orderController.getStaffStatistics);
+// router.get('/staff/statistics', protect, isStaff, orderController.getStaffStatistics);
 router.get('/staff/shippers', protect, isStaff, orderController.getAvailableShippers);
 
 // // SHIPPER
