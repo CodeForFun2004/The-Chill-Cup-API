@@ -44,7 +44,7 @@ app.get('/', (req, res) => {
 
 const authRoutes = require('./routes/auth.routes');   // authRoutes phải gọi sau .env
 app.use('/api/auth', authRoutes);
-app.use('/api/users',userRoutes)
+app.use('/api/users',userRoutes);
 app.use('/api/toppings', toppingRoutes);
 app.use('/api/sizes', sizeRoutes);
 app.use('/api/products', productRoutes);

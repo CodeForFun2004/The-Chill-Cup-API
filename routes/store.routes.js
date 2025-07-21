@@ -11,14 +11,21 @@ const uploadStoreImage = upload({
   nameField: 'name'
 });
 
-router.post('/', protect, isAdmin,uploadStoreImage.single('image'), storeController.createStore);
+// router.post('/', protect, isAdmin,uploadStoreImage.single('image'), storeController.createStore);
+router.post('/', uploadStoreImage.single('image'), storeController.createStore);
+
+// user va admin deu dung dc
 router.get('/', storeController.getAllStores);
+
 router.get('/:id', storeController.getStoreById);
-router.put('/:id', protect, isAdmin, uploadStoreImage.single('image'),storeController.updateStore);
-router.delete('/:id', protect, isAdmin, storeController.deleteStore);
+// router.put('/:id', protect, isAdmin, uploadStoreImage.single('image'),storeController.updateStore);
+router.put('/:id', uploadStoreImage.single('image'),storeController.updateStore);
+// router.delete('/:id', protect, isAdmin, storeController.deleteStore);
+router.delete('/:id', storeController.deleteStore);
 
 // Hoạt động/ Ngừng
-router.put('/:id/toggle-status', protect, isAdmin, storeController.toggleStoreStatus);
+// router.put('/:id/toggle-status', protect, isAdmin, storeController.toggleStoreStatus);
+router.put('/:id/toggle-status', storeController.toggleStoreStatus);
 
 
 module.exports = router;
