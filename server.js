@@ -26,9 +26,15 @@ const userDiscountRoutes = require('./routes/userDiscount.routes');
 const loyaltyRoutes = require('./routes/loyalty.routes');
 const orderRoutes = require('./routes/order.routes');
 const passwordRoutes = require('./routes/password.routes');
+const adminDashboardRoutes = require('./routes/adminDashboard.routes');
 
 const app = express();
-app.use(cors());
+// Configure CORS explicitly
+app.use(cors({
+  origin: ['http://localhost:8080', 'http://10.0.2.2:8080', 'http://10.0.2.2'], // Allow emulator and local origins
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // Explicitly allow methods
+  allowedHeaders: ['Content-Type', 'Authorization'], // Allow Authorization header
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(passport.initialize());
@@ -44,7 +50,7 @@ app.get('/', (req, res) => {
 
 const authRoutes = require('./routes/auth.routes');   // authRoutes phải gọi sau .env
 app.use('/api/auth', authRoutes);
-app.use('/api/users',userRoutes)
+app.use('/api/users',userRoutes);
 app.use('/api/toppings', toppingRoutes);
 app.use('/api/sizes', sizeRoutes);
 app.use('/api/products', productRoutes);
@@ -57,10 +63,12 @@ app.use('/api/user-discounts', userDiscountRoutes);
 app.use('/api/loyalty', loyaltyRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/password', passwordRoutes);
+app.use('/api/admin/dashboard', adminDashboardRoutes);
 
 
 const PORT = process.env.PORT || 8080;
 
-app.listen(PORT,  () =>{
+app.listen(PORT, '0.0.0.0', () =>{
    console.log(`🚀 HHHHHHH Server running on http://localhost:${PORT}`)
 });
+

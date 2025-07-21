@@ -8,7 +8,8 @@ const storeSchema = new mongoose.Schema({
   isActive: { type: Boolean, default: true },
   mapUrl: { type: String },
   image: { type: String },
-
+  latitude: { type: Number, required: true }, 
+  longitude: { type: Number, required: true },
   staff: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
