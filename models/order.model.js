@@ -24,7 +24,7 @@ const orderSchema = new mongoose.Schema({
   deliveryAddress: { type: String, required: true }, // Địa chỉ giao hàng (mặc định lấy từ user, có thể sửa)
   phone: { type: String, required: true },           // Số điện thoại giao hàng
 
-  paymentMethod: { type: String, enum: ['cod', 'vnpay'], default: 'cod' },
+  paymentMethod: { type: String, enum: ['cod', 'vietqr'], default: 'cod' },
 
   deliveryTime: { type: String, default: '25-35 phút' }, // Dự kiến
 
