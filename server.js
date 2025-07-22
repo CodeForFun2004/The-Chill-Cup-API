@@ -27,6 +27,7 @@ const loyaltyRoutes = require('./routes/loyalty.routes');
 const orderRoutes = require('./routes/order.routes');
 const passwordRoutes = require('./routes/password.routes');
 const adminDashboardRoutes = require('./routes/adminDashboard.routes');
+const aiRoutes = require('./routes/chatbot.routes'); // Import chatbot routes
 
 const app = express();
 // Configure CORS explicitly
@@ -64,6 +65,7 @@ app.use('/api/loyalty', loyaltyRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/password', passwordRoutes);
 app.use('/api/admin/dashboard', adminDashboardRoutes);
+app.use('/api/chatbot', aiRoutes); // Đăng ký chatbot routes
 
 
 const PORT = process.env.PORT || 8080;
