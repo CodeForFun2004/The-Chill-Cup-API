@@ -52,6 +52,7 @@ exports.createOrder = async (req, res) => {
 
     // ✅ Tính subtotal KHÔNG gồm deliveryFee, đã trừ discount
     const subtotalWithoutDelivery = cart.total - cart.deliveryFee;
+
     console.log("=== [DEBUG] Tổng cart (đã gồm giảm giá + phí ship): ", cart.total);
     console.log("=== [DEBUG] Phí giao hàng: ", cart.deliveryFee);
     console.log("=== [DEBUG] Subtotal chưa gồm phí giao hàng (đã trừ discount): ", subtotalWithoutDelivery);
@@ -94,8 +95,11 @@ exports.createOrder = async (req, res) => {
     // ✅ Create the order
     const order = await Order.create({
       userId,
-      storeId, // 🔥 gán storeId vào order
-      orderNumber: generateOrderNumber(),
+
+      storeId,
+      orderNumber: orderNumber,
+
+
       items,
       subtotal: subtotalWithoutDelivery,
       discount: cart.discount || 0,
@@ -105,6 +109,7 @@ exports.createOrder = async (req, res) => {
       deliveryAddress,
       phone,
       paymentMethod,
+
       deliveryTime: "25-35 phút", // This is an estimated time, could be dynamic
       appliedPromoCode: appliedDiscount ? appliedDiscount.promotionCode : null,
     });
@@ -119,13 +124,19 @@ exports.createOrder = async (req, res) => {
     await Cart.deleteOne({ userId });
     console.log(`Đã xoá Cart của user ${userId}`);
 
-    // ✅ Cộng điểm loyalty (1 điểm / 1.000đ, tính theo finalTotal)
+
+    // ✅ Award loyalty points (1 point / 1.000đ, based on finalTotal)
+
+
     const earnedPoints = Math.floor(finalTotal / 1000);
     await LoyaltyPoint.findOneAndUpdate(
       { userId },
       {
         $inc: { totalPoints: earnedPoints },
-        $push: { history: { orderId: order[0]._id, pointsEarned: earnedPoints } },
+
+
+        $push: { history: { orderId: order._id, pointsEarned: earnedPoints } },
+
       },
       { upsert: true, new: true }
     );
@@ -166,6 +177,7 @@ exports.createOrder = async (req, res) => {
 };
 
 // --- 🔎 Get Order Details by ID ---
+
 exports.getOrderById = async (req, res) => {
   try {
     const order = await Order.findById(req.params.orderId).populate('items.productId');
@@ -504,7 +516,7 @@ exports.getShipperOrders = async (req, res) => {
   }
 };
 
-// --- 🚚 Shipper Role: Mark Delivery as Complete ---
+
 exports.completeDeliveryByShipper = async (req, res) => {
   try {
     const { orderId } = req.params;
