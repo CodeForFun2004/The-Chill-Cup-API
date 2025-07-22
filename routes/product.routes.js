@@ -2,7 +2,6 @@ const express = require("express");
 const router = express.Router();
 const { protect, isAdmin } = require("../middlewares/auth.middleware");
 const productController = require("../controllers/product.controller");
-
 const upload = require("../middlewares/upload.middleware");
 const Product = require("../models/product.model");
 
@@ -19,13 +18,14 @@ router.post(
   uploadProductImage.single("image"),
   productController.createProduct
 );
-router.get("/", productController.getAllProducts); // public
 
-// filter để lấy list product theo category, vì thứ tự ưu tiên nên /filter phải đứng trước các routes /:id
-// admin cx đc lấy đc product bị ban
-// user thì ko hiển thị
+router.get("/", productController.getAllProducts);
+
+// Filter routes
 router.get("/filter-by-category", productController.filterByCategory);
-router.get("/:id", productController.getProductById); // public
+
+router.get("/:id", productController.getProductById);
+
 router.put(
   "/:id",
   protect,
@@ -33,7 +33,9 @@ router.put(
   uploadProductImage.single("image"),
   productController.updateProduct
 );
+
 router.delete("/:id", protect, isAdmin, productController.deleteProduct);
+
 router.get("/detail/:id", productController.getProductById);
 
 // Ban & search
@@ -44,6 +46,7 @@ router.put(
   isAdmin,
   productController.banMultipleProducts
 );
+
 router.get("/search/by-name", productController.searchProductByName);
 
 module.exports = router;
