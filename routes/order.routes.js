@@ -31,10 +31,6 @@ router.get('/staff/shippers', protect, isStaff, orderController.getAvailableShip
 
 
 
-// // SHIPPER
-router.get('/shipper', protect, isShipper, orderController.getShipperOrders);
-router.put('/shipper/:orderId/complete', protect, isShipper, orderController.completeDeliveryByShipper);
-
 router.get('/:orderId', protect, orderController.getOrderById);
 
 module.exports = router;
