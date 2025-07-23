@@ -170,12 +170,145 @@ const { generateVietQR } = require("../services/payment.service"); // Ensure thi
 //   }
 // };
 
+// exports.createOrder = async (req, res) => {
+//     try {
+//         const userId = req.user._id;
+//         const { deliveryAddress, phone, paymentMethod, storeId } = req.body;
+
+//         // ✅ Check store tồn tại và active
+//         const store = await Store.findById(storeId);
+//         if (!store || !store.isActive) {
+//             return res
+//                 .status(400)
+//                 .json({ error: "Cửa hàng không tồn tại hoặc đã ngưng hoạt động" });
+//         }
+
+//         // ✅ Get cart and populate items
+//         const cart = await Cart.findOne({ userId }).populate({
+//             path: "cartItems",
+//             populate: [{ path: "productId" }, { path: "toppings" }],
+//         });
+
+//         if (!cart || cart.cartItems.length === 0) {
+//             return res.status(400).json({ error: 'Giỏ hàng trống' });
+//         }
+
+//         // ✅ Nếu có mã giảm giá, kiểm tra thông tin
+//         let appliedDiscount = null;
+//         if (cart.promoCode) {
+//             appliedDiscount = await Discount.findOne({ promotionCode: cart.promoCode });
+//             if (!appliedDiscount) {
+//                 return res.status(400).json({ error: 'Mã giảm giá không tồn tại' });
+//             }
+//         }
+
+//         // ✅ Tính toán tổng tiền
+//         const subtotalWithoutDelivery = cart.total - cart.deliveryFee;
+//         const tax = Math.round(subtotalWithoutDelivery * 0.1);
+//         const finalTotal = cart.total + tax;
+
+//         // ✅ Map items for the order
+//         const items = cart.cartItems.map((item) => ({
+//             productId: item.productId?._id,
+//             name: item.productId?.name,
+//             size: item.size,
+//             toppings: item.toppings.map((t) => ({ id: t._id, name: t.name })),
+//             quantity: item.quantity,
+//             price: item.subtotal || item.price, // Sử dụng giá đã tính từ cart
+//         }));
+        
+//         // Generate order number early for consistent use
+//         const orderNumber = generateOrderNumber();
+
+//         // ✅ Tạo một đối tượng orderData để dễ dàng thêm các trường khác
+//         let orderData = {
+//             userId,
+//             storeId,
+//             orderNumber,
+//             items,
+//             subtotal: subtotalWithoutDelivery,
+//             discount: cart.discount || 0,
+//             tax,
+//             total: finalTotal,
+//             deliveryFee: cart.deliveryFee,
+//             deliveryAddress,
+//             phone,
+//             paymentMethod,
+//             deliveryTime: "25-35 phút",
+//             appliedPromoCode: appliedDiscount ? appliedDiscount.promotionCode : null,
+//         };
+
+//         // ✅ Logic tạo mã QR chỉ chạy khi paymentMethod là vietqr
+//         if (paymentMethod.toLowerCase() === "vietqr") {
+//             const bankCode = process.env.MY_BANK_CODE;
+//             const accountNumber = process.env.MY_ACCOUNT_NUMBER;
+
+//             if (!bankCode || !accountNumber) {
+//                 console.warn("VietQR bank code or account number not configured.");
+//                 return res.status(500).json({ error: "Lỗi cấu hình thanh toán VietQR." });
+//             }
+
+//             const qrCodeUrl = await generateVietQR(
+//                 bankCode,
+//                 accountNumber,
+//                 finalTotal,
+//                 orderNumber // Sử dụng orderNumber đã tạo
+//             );
+            
+//             // ✅ THÊM qrCodeUrl VÀO orderData TRƯỚC KHI TẠO
+//             orderData.qrCodeUrl = qrCodeUrl;
+//         }
+
+//         // ✅ Tạo đơn hàng với tất cả dữ liệu đã được chuẩn bị
+//         const order = await Order.create(orderData);
+
+//         // ✅ Delete cart items
+//         await CartItem.deleteMany({ _id: { $in: cart.cartItems.map((item) => item._id) } });
+//         console.log(`Đã xoá CartItems của user ${userId}`);
+
+//         // ✅ Xoá cart
+//         await Cart.deleteOne({ userId });
+//         console.log(`Đã xoá Cart của user ${userId}`);
+
+//         // ✅ Award loyalty points
+//         const earnedPoints = Math.floor(finalTotal / 1000);
+//         await LoyaltyPoint.findOneAndUpdate(
+//             { userId },
+//             {
+//                 $inc: { totalPoints: earnedPoints },
+//                 $push: { history: { orderId: order._id, pointsEarned: earnedPoints } },
+//             },
+//             { upsert: true, new: true }
+//         );
+
+//         // ✅ Trả về phản hồi dựa trên phương thức thanh toán
+//         if (paymentMethod.toLowerCase() === "vietqr") {
+//             return res.status(201).json({
+//                 message: "Đặt hàng thành công 🎉. Vui lòng quét mã QR để thanh toán.",
+//                 order,
+//                 qrCodeUrl: order.qrCodeUrl, // Trả về qrCodeUrl đã lưu trong DB
+//             });
+//         } else {
+//             // Bao gồm cả COD và các phương thức khác
+//             return res.status(201).json({ 
+//                 message: "Đặt hàng thành công 🎉. Thanh toán khi nhận hàng.", 
+//                 order 
+//             });
+//         }
+
+//     } catch (err) {
+//         console.error('[Create Order]', err);
+//         res.status(500).json({ error: 'Không thể tạo đơn hàng' });
+//     }
+// };
+
+// --- 🔎 Get Order Details by ID ---
+
 exports.createOrder = async (req, res) => {
     try {
         const userId = req.user._id;
         const { deliveryAddress, phone, paymentMethod, storeId } = req.body;
 
-        // ✅ Check store tồn tại và active
         const store = await Store.findById(storeId);
         if (!store || !store.isActive) {
             return res
@@ -183,17 +316,18 @@ exports.createOrder = async (req, res) => {
                 .json({ error: "Cửa hàng không tồn tại hoặc đã ngưng hoạt động" });
         }
 
-        // ✅ Get cart and populate items
         const cart = await Cart.findOne({ userId }).populate({
             path: "cartItems",
-            populate: [{ path: "productId" }, { path: "toppings" }],
+            populate: [
+                { path: "productId", model: "Product" },
+                { path: "toppings", model: "Topping" }
+            ],
         });
 
         if (!cart || cart.cartItems.length === 0) {
             return res.status(400).json({ error: 'Giỏ hàng trống' });
         }
 
-        // ✅ Nếu có mã giảm giá, kiểm tra thông tin
         let appliedDiscount = null;
         if (cart.promoCode) {
             appliedDiscount = await Discount.findOne({ promotionCode: cart.promoCode });
@@ -202,25 +336,21 @@ exports.createOrder = async (req, res) => {
             }
         }
 
-        // ✅ Tính toán tổng tiền
-        const subtotalWithoutDelivery = cart.total - cart.deliveryFee;
+        const subtotalWithoutDelivery = cart.subtotal;
         const tax = Math.round(subtotalWithoutDelivery * 0.1);
         const finalTotal = cart.total + tax;
 
-        // ✅ Map items for the order
         const items = cart.cartItems.map((item) => ({
             productId: item.productId?._id,
             name: item.productId?.name,
             size: item.size,
             toppings: item.toppings.map((t) => ({ id: t._id, name: t.name })),
             quantity: item.quantity,
-            price: item.price,
+            price: item.price, // Sử dụng trường price đã tính toán từ CartItem
         }));
-        
-        // Generate order number early for consistent use
+
         const orderNumber = generateOrderNumber();
 
-        // ✅ Tạo một đối tượng orderData để dễ dàng thêm các trường khác
         let orderData = {
             userId,
             storeId,
@@ -238,7 +368,6 @@ exports.createOrder = async (req, res) => {
             appliedPromoCode: appliedDiscount ? appliedDiscount.promotionCode : null,
         };
 
-        // ✅ Logic tạo mã QR chỉ chạy khi paymentMethod là vietqr
         if (paymentMethod.toLowerCase() === "vietqr") {
             const bankCode = process.env.MY_BANK_CODE;
             const accountNumber = process.env.MY_ACCOUNT_NUMBER;
@@ -252,25 +381,20 @@ exports.createOrder = async (req, res) => {
                 bankCode,
                 accountNumber,
                 finalTotal,
-                orderNumber // Sử dụng orderNumber đã tạo
+                orderNumber
             );
-            
-            // ✅ THÊM qrCodeUrl VÀO orderData TRƯỚC KHI TẠO
+
             orderData.qrCodeUrl = qrCodeUrl;
         }
 
-        // ✅ Tạo đơn hàng với tất cả dữ liệu đã được chuẩn bị
         const order = await Order.create(orderData);
 
-        // ✅ Delete cart items
         await CartItem.deleteMany({ _id: { $in: cart.cartItems.map((item) => item._id) } });
         console.log(`Đã xoá CartItems của user ${userId}`);
 
-        // ✅ Xoá cart
         await Cart.deleteOne({ userId });
         console.log(`Đã xoá Cart của user ${userId}`);
 
-        // ✅ Award loyalty points
         const earnedPoints = Math.floor(finalTotal / 1000);
         await LoyaltyPoint.findOneAndUpdate(
             { userId },
@@ -281,18 +405,16 @@ exports.createOrder = async (req, res) => {
             { upsert: true, new: true }
         );
 
-        // ✅ Trả về phản hồi dựa trên phương thức thanh toán
         if (paymentMethod.toLowerCase() === "vietqr") {
             return res.status(201).json({
                 message: "Đặt hàng thành công 🎉. Vui lòng quét mã QR để thanh toán.",
                 order,
-                qrCodeUrl: order.qrCodeUrl, // Trả về qrCodeUrl đã lưu trong DB
+                qrCodeUrl: order.qrCodeUrl,
             });
         } else {
-            // Bao gồm cả COD và các phương thức khác
-            return res.status(201).json({ 
-                message: "Đặt hàng thành công 🎉. Thanh toán khi nhận hàng.", 
-                order 
+            return res.status(201).json({
+                message: "Đặt hàng thành công 🎉. Thanh toán khi nhận hàng.",
+                order
             });
         }
 
@@ -302,7 +424,6 @@ exports.createOrder = async (req, res) => {
     }
 };
 
-// --- 🔎 Get Order Details by ID ---
 
 exports.getOrderById = async (req, res) => {
   try {
