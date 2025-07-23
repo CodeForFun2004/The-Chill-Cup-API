@@ -27,6 +27,7 @@ const loyaltyRoutes = require('./routes/loyalty.routes');
 const orderRoutes = require('./routes/order.routes');
 const passwordRoutes = require('./routes/password.routes');
 const adminDashboardRoutes = require('./routes/adminDashboard.routes');
+const shipperRoutes = require('./routes/shipper.routes')
 
 const app = express();
 // Configure CORS explicitly
@@ -64,6 +65,7 @@ app.use('/api/loyalty', loyaltyRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/password', passwordRoutes);
 app.use('/api/admin/dashboard', adminDashboardRoutes);
+app.use('/api/shipper', shipperRoutes);
 
 
 const PORT = process.env.PORT || 8080;
