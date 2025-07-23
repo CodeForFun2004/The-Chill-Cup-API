@@ -6,6 +6,7 @@ const cartItemSchema = new mongoose.Schema({
   size: { type: String, enum: ['S', 'M', 'L'], required: true },
   toppings: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Topping' }],
   quantity: { type: Number, default: 1 },
+  price: { type: Number, default: 0 },
 }, {
   timestamps: true
 });
