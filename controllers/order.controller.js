@@ -449,29 +449,29 @@ exports.updateOrderStatusByAdmin = async (req, res) => {
 // --- 👩‍💼 Staff Role: Get Orders Assigned to Their Store ---
 exports.getStaffOrders = async (req, res) => {
   try {
-    const staffId = req.user._id; // Get staff ID from authenticated user
+    const staffId = req.user._id; // lấy từ protect middleware
 
-    // 1️⃣ Find the store managed by this staff
-    const store = await Store.findOne({ staff: staffId });
+    // 1️⃣ Tìm store mà staff này quản lý
+    const store = await Store.findOne({ "staff._id": staffId });
     if (!store) {
       return res.status(404).json({ error: 'Nhân viên chưa được gán quản lý cửa hàng nào' });
     }
 
     const { status } = req.query;
 
-    // 2️⃣ Filter orders by storeId and active statuses
+    // 2️⃣ Lọc đơn hàng theo storeId + status
     const filter = {
       storeId: store._id,
-      status: { $in: ['pending', 'processing', 'preparing', 'ready', 'delivering'] } // Default statuses for staff to manage
+      status: { $in: ['pending', 'processing', 'preparing', 'ready', 'delivering', 'completed', 'cancelled'] }
     };
 
-    if (status) filter.status = status; // Override with specific status if provided in query
+    if (status) filter.status = status; // nếu có query status cụ thể
 
     const orders = await Order.find(filter).sort({ createdAt: -1 });
 
     res.status(200).json(orders);
   } catch (err) {
-    console.error('[getStaffOrders] ❌ ERROR:', err);
+    console.error('[getStaffOrders]', err);
     res.status(500).json({ error: 'Không thể lấy danh sách đơn hàng cho nhân viên' });
   }
 };
