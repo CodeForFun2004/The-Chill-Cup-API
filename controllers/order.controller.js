@@ -568,3 +568,22 @@ exports.completeDeliveryByShipper = async (req, res) => {
     res.status(500).json({ error: 'Không thể cập nhật trạng thái giao hàng' });
   }
 };
+
+
+// 🚚 Lấy danh sách shipper có sẵn
+exports.getAvailableShippers = async (req, res) => {
+  try {
+    const shippers = await User.find({ 
+      role: "shipper",
+      status: { $in: ["available", "assigned"] }
+    }).select("fullname staffId status").sort({ fullname: 1 });
+
+    
+    if(!shippers){
+      res.status(404).json({message: "Không tìm thấy shippertrong database"});
+    } else res.status(200).json(shippers);
+  } catch (err) {
+    console.error("[getAvailableShippers]", err);
+    res.status(500).json({ error: "Không thể lấy danh sách shipper" });
+  }
+};
