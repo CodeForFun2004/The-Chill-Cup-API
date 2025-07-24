@@ -377,21 +377,80 @@ exports.removeCartItem = async (req, res) => {
     if (!cart)
       return res.status(404).json({ error: "Không tìm thấy giỏ hàng" });
 
+    // Xoá cartItem khỏi mảng cart
     cart.cartItems = cart.cartItems.filter(
       (itemId) => itemId.toString() !== req.params.itemId
     );
     await CartItem.findByIdAndDelete(req.params.itemId);
+    await cart.save();
 
-    const { subtotal } = await calculateCartTotals(cart.cartItems);
+    // Populate lại giỏ hàng đầy đủ
+    const populatedCart = await Cart.findById(cart._id).populate({
+      path: "cartItems",
+      populate: [
+        {
+          path: "productId",
+          model: "Product",
+          populate: [
+            "categoryId",
+            { path: "sizeOptions", model: "Size" },
+            "toppingOptions",
+          ],
+        },
+        {
+          path: "toppings",
+          model: "Topping",
+        },
+      ],
+    });
+
+    // Mapping lại cart items
+    const items = populatedCart.cartItems.map((item) => {
+      const product = item.productId;
+      const category =
+        Array.isArray(product.categoryId) && product.categoryId.length > 0
+          ? typeof product.categoryId[0] === "object"
+            ? product.categoryId[0].category
+            : "Unknown"
+          : "Unknown";
+
+      return {
+        _id: item._id,
+        productId: product,
+        name: product.name,
+        image: product.image,
+        category,
+        size: item.size,
+        toppings: item.toppings,
+        quantity: item.quantity,
+        price: item.price,
+      };
+    });
+
+    // ✅ Tính lại subtotal từ populatedCart.cartItems
+    const { subtotal } = await calculateCartTotals(populatedCart.cartItems);
     cart.subtotal = subtotal;
     cart.total = subtotal + cart.deliveryFee - cart.discount;
     await cart.save();
 
-    res.status(200).json({ message: "Đã xoá sản phẩm", cart });
+    // Phản hồi
+    res.status(200).json({
+      message: "Đã xoá sản phẩm",
+      items,
+      subtotal: cart.subtotal,
+      deliveryFee: cart.deliveryFee,
+      discount: cart.discount,
+      total: cart.total,
+      promoCode: cart.promoCode || "",
+      taxRate: cart.taxRate || 0,
+    });
   } catch (err) {
+    console.error("[removeCartItem]", err);
     res.status(500).json({ error: "Không thể xoá sản phẩm khỏi giỏ hàng" });
   }
 };
+
+
 
 exports.clearCart = async (req, res) => {
   try {
