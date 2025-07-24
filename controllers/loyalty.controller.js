@@ -34,6 +34,12 @@ exports.redeemVoucher = async (req, res) => {
       return res.status(400).json({ error: 'Không đủ điểm để đổi voucher' });
     }
 
+    // Kiểm tra xem user đã đổi voucher này chưa
+    const existingUserDiscount = await UserDiscount.findOne({ userId, discountId });
+    if (existingUserDiscount) {
+      return res.status(400).json({ error: 'Bạn đã đổi voucher này rồi' });
+    }
+
     // Trừ điểm
     loyalty.totalPoints -= requiredPoints;
     await loyalty.save();

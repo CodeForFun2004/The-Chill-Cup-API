@@ -10,7 +10,7 @@ const generatePromotionCode = () => {
 // ✅ Create new discount (Admin)
 exports.createDiscount = async (req, res) => {
   try {
-    const { title, description, discountPercent, expiryDate, minOrder, image } = req.body;
+    const { title, description, discountPercent, expiryDate, minOrder, image, requiredPoints } = req.body;
 
     const existing = await Discount.findOne({ title });
     if (existing) return res.status(400).json({ error: 'Mã giảm giá đã tồn tại' });
@@ -24,7 +24,8 @@ exports.createDiscount = async (req, res) => {
       expiryDate,
       minOrder,
       image,
-      promotionCode
+      promotionCode,
+      requiredPoints : requiredPoints || 0,
     });
 
     res.status(201).json({ message: 'Tạo mã giảm giá thành công', discount });
