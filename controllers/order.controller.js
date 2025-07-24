@@ -176,119 +176,7 @@ exports.createOrder = async (req, res) => {
   }
 };
 
-// --- 🔎 Get Order Details by ID ---
 
-exports.getOrderById = async (req, res) => {
-  try {
-    const order = await Order.findById(req.params.orderId).populate('items.productId');
-    if (!order) {
-      return res.status(404).json({ error: 'Không tìm thấy đơn hàng' });
-    }
-
-    res.status(200).json(order);
-  } catch (err) {
-    console.error('[Get Order] ❌ ERROR:', err);
-    res.status(500).json({ error: 'Không thể lấy chi tiết đơn hàng' });
-  }
-};
-
-
-
-    // // ✅ Tính subtotal KHÔNG gồm deliveryFee, đã trừ discount
-    // const subtotalWithoutDelivery = cart.total - cart.deliveryFee;
-    // console.log(
-    //   "=== [DEBUG] Tổng cart (đã gồm giảm giá + phí ship): ",
-    //   cart.total
-    // );
-    // console.log("=== [DEBUG] Phí giao hàng: ", cart.deliveryFee);
-    // console.log(
-    //   "=== [DEBUG] Subtotal chưa gồm phí giao hàng (đã trừ discount): ",
-    //   subtotalWithoutDelivery
-    // );
-
-    // // ✅ Tax = 10% của subtotalWithoutDelivery
-    // const tax = Math.round(subtotalWithoutDelivery * 0.1);
-    // console.log("=== [DEBUG] Thuế 10% tính trên subtotal: ", tax);
-
-    // // ✅ Total = subtotalWithoutDelivery + tax + deliveryFee
-    // //const finalTotal = subtotalWithoutDelivery + tax + cart.deliveryFee;
-    // const finalTotal = cart.total + tax;
-    // console.log(
-    //   "=== [DEBUG] Tổng tiền cuối cùng (cart.total + tax): ",
-    //   finalTotal
-    // );
-
-    // // ✅ Debug thêm các thông tin liên quan
-    // console.log("=== [DEBUG] Discount áp dụng: ", cart.discount || 0);
-    // console.log(
-    //   "=== [DEBUG] Promo Code: ",
-    //   cart.promoCode || "Không áp dụng mã"
-    // );
-
-    // // ✅ Debug danh sách sản phẩm
-    // cart.cartItems.forEach((item, index) => {
-    //   console.log(
-    //     `=== [DEBUG] Item ${index + 1}: ${item.productId?.name}, Số lượng: ${
-    //       item.quantity
-    //     }, Giá đã tính: ${item.price}`
-    //   );
-    // });
-
-    // // ✅ Map items
-    // const items = cart.cartItems.map((item) => ({
-    //   productId: item.productId?._id,
-    //   name: item.productId?.name,
-    //   size: item.size,
-    //   toppings: item.toppings.map((t) => ({ id: t._id, name: t.name })),
-    //   quantity: item.quantity,
-    //   price: item.price, // snapshot giá đã tính sẵn từ cart
-    // }));
-
-    // // ✅ Tạo order
-    // const order = await Order.create({
-    //   userId,
-    //   storeId, // 🔥 gán storeId vào order
-    //   orderNumber: generateOrderNumber(),
-    //   items,
-    //   subtotal: subtotalWithoutDelivery,
-    //   discount: cart.discount || 0,
-    //   tax,
-    //   total: finalTotal,
-    //   deliveryFee: cart.deliveryFee,
-    //   deliveryAddress,
-    //   phone,
-    //   paymentMethod,
-    //   deliveryTime: "25-35 phút",
-    //   appliedPromoCode: appliedDiscount ? appliedDiscount.promotionCode : null,
-    // });
-
-    // // ✅ Xoá cart items
-    // const deleteResult = await CartItem.deleteMany({
-    //   _id: { $in: cart.cartItems.map((item) => item._id) },
-    // });
-    // console.log(`Đã xoá ${deleteResult.deletedCount} CartItems`);
-
-    // // ✅ Xoá cart
-    // await Cart.deleteOne({ userId });
-    // console.log(`Đã xoá Cart của user ${userId}`);
-
-    // // ✅ Cộng điểm loyalty (1 điểm / 1.000đ, tính theo finalTotal)
-    // const earnedPoints = Math.floor(finalTotal / 1000);
-    // await LoyaltyPoint.findOneAndUpdate(
-    //   { userId },
-    //   {
-    //     $inc: { totalPoints: earnedPoints },
-    //     $push: { history: { orderId: order._id, pointsEarned: earnedPoints } },
-    //   },
-    //   { upsert: true, new: true }
-    // );
-
-//     res.status(201).json({ message: "Đặt hàng thành công 🎉", order });
-//   } catch (err) {
-//     console.error("[Create Order]", err);
-//     res.status(500).json({ error: "Không thể tạo đơn hàng" });
-//   }
-// };
 
 exports.getOrderById = async (req, res) => {
   try {
@@ -457,8 +345,10 @@ exports.getStaffOrders = async (req, res) => {
 
     if (status) filter.status = status; // nếu có query status cụ thể
 
-    const orders = await Order.find(filter).sort({ createdAt: -1 });
-
+    const orders = await Order.find(filter)
+    .populate('userId', 'fullname email phone')
+    .sort({ createdAt: -1 });
+    // console.log(orders);
     res.status(200).json(orders);
   } catch (err) {
     console.error('[getStaffOrders]', err);
