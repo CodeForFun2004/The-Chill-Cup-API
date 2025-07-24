@@ -25,15 +25,11 @@ router.put('/staff/:orderId', protect, isStaff, orderController.updateOrderStatu
 // 2 router này bị lỗi phải comment để chạy
 // router.get('/staff/statistics', protect, isStaff, orderController.getStaffStatistics);
 
-router.get('/staff/shippers', protect, isStaff, orderController.getAvailableShippers);
+//router.get('/staff/shippers', protect, isStaff, orderController.getAvailableShippers);
 
 
 
 
-
-// // SHIPPER
-router.get('/shipper', protect, isShipper, orderController.getShipperOrders);
-router.put('/shipper/:orderId/complete', protect, isShipper, orderController.completeDeliveryByShipper);
 
 router.get('/:orderId', protect, orderController.getOrderById);
 

@@ -1,51 +1,67 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 const orderSchema = new mongoose.Schema({
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
 
-  storeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Store', required: true },  // store đặt hàng
+  storeId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Store",
+    required: true,
+  }, // store đặt hàng
 
   orderNumber: { type: String, required: true, unique: true }, // VD: #ORD-4bd8f7
 
   items: [
     {
-      productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
+      productId: { type: mongoose.Schema.Types.ObjectId, ref: "Product" },
       name: String,
+      size: String, // <-- NEW: Thêm size vào order item để hiển thị chi tiết hơn
+      toppings: [{ id: mongoose.Schema.Types.ObjectId, name: String }], // <-- NEW: Thêm toppings vào order item
       quantity: Number,
-      price: Number
-    }
+      price: Number,
+    },
   ],
 
-  subtotal: { type: Number, required: true },    // Tạm tính
+  subtotal: { type: Number, required: true }, // Tạm tính
   deliveryFee: { type: Number, required: true }, // Phí giao hàng
-  tax: { type: Number, required: true },         // Thuế
-  total: { type: Number, required: true },       // Tổng cộng
+  tax: { type: Number, required: true }, // Thuế
+  total: { type: Number, required: true }, // Tổng cộng
 
   deliveryAddress: { type: String, required: true }, // Địa chỉ giao hàng (mặc định lấy từ user, có thể sửa)
-  phone: { type: String, required: true },           // Số điện thoại giao hàng
+  phone: { type: String, required: true }, // Số điện thoại giao hàng
 
-  paymentMethod: { type: String, enum: ['cod', 'vietqr'], default: 'cod' },
+  paymentMethod: { type: String, enum: ["cod", "vietqr"], default: "cod" },
 
-  deliveryTime: { type: String, default: '25-35 phút' }, // Dự kiến
+  qrCodeUrl: { type: String, required: false },
+
+  deliveryTime: { type: String, default: "25-35 phút" }, // Dự kiến
 
   status: {
     type: String,
-    enum: ['pending', 'processing', 'preparing', 'ready', 'delivering', 'completed', 'cancelled'],
-    default: 'pending'
+    enum: [
+      "pending",
+      "processing",
+      "preparing",
+      "ready",
+      "delivering",
+      "completed",
+      "cancelled",
+    ],
+    default: "pending",
   },
 
   cancelReason: {
-    type: String,
-    default: null
+    type: String, 
+    default: null,
   },
 
   shipperAssigned: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    default: null
+    ref: "User",
+    default: null,
   },
 
-  createdAt: { type: Date, default: Date.now }
+  createdAt: { type: Date, default: Date.now },
 });
 
-module.exports = mongoose.model('Order', orderSchema);
+module.exports = mongoose.model("Order", orderSchema);
