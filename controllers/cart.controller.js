@@ -335,87 +335,6 @@ exports.removeCartItem = async (req, res) => {
   }
 };
 
-// 🔴 Clear entire cart
-// exports.clearCart = async (req, res) => {
-//   try {
-//     const userId = req.user._id;
-//     const cart = await Cart.findOne({ userId });
-//     if (cart) {
-//       await CartItem.deleteMany({ _id: { $in: cart.cartItems } });
-//       cart.cartItems = [];
-//       cart.subtotal = 0;
-//       cart.total = DELIVERY_FEE;
-//       await cart.save();
-//     }
-
-//     res.status(200).json({ message: 'Đã xoá toàn bộ giỏ hàng' });
-//   } catch (err) {
-//     res.status(500).json({ error: 'Không thể xoá giỏ hàng' });
-//   }
-// };
-// exports.clearCart = async (req, res) => {
-//   try {
-//     const userId = req.user._id; // Lấy userId từ req.user (đảm bảo middleware auth hoạt động)
-
-//     const cart = await Cart.findOne({ userId });
-
-//     if (!cart) {
-//       // Nếu không tìm thấy giỏ hàng, trả về trạng thái rỗng và thành công.
-//       return res.status(200).json({
-//         message: 'Giỏ hàng đã trống.',
-//         items: [],
-//         subtotal: 0,
-//         discount: 0,
-//         total: 0,
-//         deliveryFee: 10000, // Hoặc giá trị mặc định của bạn
-//         taxRate: 0.01 // Hoặc giá trị mặc định của bạn
-//       });
-//     }
-
-//     // --- Xử lý UserDiscount và mã giảm giá đã áp dụng ---
-//     if (cart.promotionCode) { // Giả sử bạn lưu `promotionCode` trong Cart model khi áp dụng
-//       const discount = await Discount.findOne({ promotionCode: cart.promotionCode });
-
-//       if (discount) {
-//         // ✅ Cập nhật trạng thái `isUsed: false` cho UserDiscount
-//         await UserDiscount.updateOne(
-//           { userId, discountId: discount._id },
-//           { $set: { isUsed: false } }
-//         );
-//         console.log(`UserDiscount for user ${userId} and discount ${discount._id} was reset to isUsed: false.`);
-
-//         // ❌ Bỏ dòng xóa UserDiscount khỏi collection theo yêu cầu mới của bạn
-//         // await UserDiscount.deleteOne({ userId, discountId: discount._id });
-//         // console.log(`UserDiscount for user ${userId} and discount ${discount._id} was deleted.`);
-//       }
-//     }
-
-//     // --- Xóa tất cả CartItem tương ứng trong collection CartItem ---
-//     if (cart.cartItems && cart.cartItems.length > 0) {
-//       await CartItem.deleteMany({ _id: { $in: cart.cartItems } });
-//       console.log(`Deleted ${cart.cartItems.length} CartItems for cart ${cart._id}.`);
-//     }
-
-//     // --- Xóa giỏ hàng chính khỏi database ---
-//     await Cart.deleteOne({ userId });
-//     console.log(`Cart for user ${userId} was deleted.`);
-
-//     // Trả về một đối tượng giỏ hàng trống khớp với CartApiResponse của frontend
-//     res.status(200).json({
-//       message: 'Giỏ hàng đã được xóa và mã giảm giá đã được đặt lại.',
-//       items: [], // Mảng sản phẩm trống
-//       subtotal: 0,
-//       discount: 0,
-//       total: 0,
-//       deliveryFee: 10000, // Trả về phí ship mặc định của bạn
-//       taxRate: 0.01 // Trả về thuế suất mặc định của bạn
-//     });
-
-//   } catch (err) {
-//     console.error('[Clear Cart Error]', err);
-//     res.status(500).json({ error: 'Không thể xóa giỏ hàng: ' + err.message });
-//   }
-// };
 
 exports.clearCart = async (req, res) => {
   try {
@@ -488,115 +407,6 @@ exports.clearCart = async (req, res) => {
 };
 
 
-// Apply discount to cart
-
-
-// ✅ Áp dụng mã giảm giá vào giỏ hàng
-// exports.applyDiscountToCart = async (req, res) => {
-//   try {
-//     const { promotionCode } = req.body;
-//     const userId = req.user._id;
-
-//     const cart = await Cart.findOne({ userId }).populate('cartItems');
-//     if (!cart) return res.status(400).json({ error: 'Không tìm thấy giỏ hàng' });
-
-//     const discount = await Discount.findOne({ promotionCode });
-//     if (!discount) return res.status(404).json({ error: 'Mã giảm giá không hợp lệ' });
-
-//     if (discount.isLock) return res.status(400).json({ error: 'Mã giảm giá đã bị khoá' });
-//     if (discount.expiryDate < new Date()) return res.status(400).json({ error: 'Mã giảm giá đã hết hạn' });
-
-//     const userDiscount = await UserDiscount.findOne({ userId, discountId: discount._id });
-//     if (userDiscount?.isUsed) return res.status(400).json({ error: 'Bạn đã sử dụng mã này' });
-
-//     const subtotal = cart.subtotal || (await calculateCartTotals(cart.cartItems)).subtotal;
-
-//     if (subtotal < discount.minOrder) {
-//       return res.status(400).json({ error: `Đơn hàng chưa đạt tối thiểu ${discount.minOrder.toLocaleString()}đ` });
-//     }
-
-//     // Áp dụng giảm
-//     const discountAmount = Math.round(subtotal * (discount.discountPercent / 100));
-//     cart.discount = discountAmount;
-//     cart.total = subtotal + cart.deliveryFee - discountAmount;
-
-//     console.log('========================');
-//     console.log(promotionCode)
-//     console.log(cart);
-//     await cart.save();
-
-//     // Ghi nhận người dùng đã dùng mã
-//     await UserDiscount.updateOne(
-//       { userId, discountId: discount._id },
-//       { $set: { isUsed: true } },
-//       { upsert: true }
-//     );
-
-//     res.status(200).json({
-//       message: 'Áp dụng mã giảm giá thành công',
-//       discountAmount,
-//       total: cart.total
-//     });
-//   } catch (err) {
-//     console.error('[Apply Discount]', err);
-//     res.status(500).json({ error: 'Không thể áp dụng mã giảm giá' });
-//   }
-// };
-
-// exports.applyDiscountToCart = async (req, res) => {
-//   try {
-//     const { promotionCode } = req.body; // frontend gửi là promotionCode
-//     const userId = req.user._id;
-
-//     const cart = await Cart.findOne({ userId }).populate('cartItems');
-//     if (!cart) return res.status(400).json({ error: 'Không tìm thấy giỏ hàng' });
-
-//     const discount = await Discount.findOne({ promotionCode });
-//     if (!discount) return res.status(404).json({ error: 'Mã giảm giá không hợp lệ' });
-
-//     if (discount.isLock) return res.status(400).json({ error: 'Mã giảm giá đã bị khoá' });
-//     if (discount.expiryDate < new Date()) return res.status(400).json({ error: 'Mã giảm giá đã hết hạn' });
-
-//     const userDiscount = await UserDiscount.findOne({ userId, discountId: discount._id });
-//     if (userDiscount?.isUsed) return res.status(400).json({ error: 'Bạn đã sử dụng mã này' });
-
-//     const subtotal = cart.subtotal || (await calculateCartTotals(cart.cartItems)).subtotal;
-
-//     if (subtotal < discount.minOrder) {
-//       return res.status(400).json({ error: `Đơn hàng chưa đạt tối thiểu ${discount.minOrder.toLocaleString()}đ` });
-//     }
-
-//     // --- Áp dụng giảm và lưu vào Cart ---
-//     const discountAmount = Math.round(subtotal * (discount.discountPercent / 100));
-//     cart.discount = discountAmount;
-//     cart.total = subtotal + cart.deliveryFee - discountAmount;
-//     cart.promoCode = promotionCode; // ✅ LƯU promotionCode vào trường promoCode của Cart model
-
-//     await cart.save();
-
-//     // Ghi nhận người dùng đã dùng mã
-//     await UserDiscount.updateOne(
-//       { userId, discountId: discount._id },
-//       { $set: { isUsed: true } },
-//       { upsert: true }
-//     );
-
-//     // ✅ Trả về toàn bộ thông tin giỏ hàng đã cập nhật
-//     // Đảm bảo khớp với CartApiResponse ở frontend
-//     res.status(200).json({
-//       message: 'Áp dụng mã giảm giá thành công',
-//       items: (await calculateCartTotals(cart.cartItems)).items, // Cần trả về items đầy đủ
-//       subtotal: cart.subtotal,
-//       deliveryFee: cart.deliveryFee,
-//       discount: cart.discount,
-//       total: cart.total,
-//       promoCode: cart.promoCode // ✅ Trả về promoCode đã lưu
-//     });
-//   } catch (err) {
-//     console.error('[Apply Discount]', err);
-//     res.status(500).json({ error: 'Không thể áp dụng mã giảm giá' });
-//   }
-// };
 
 // ✅ Áp dụng mã giảm giá vào giỏ hàng
 exports.applyDiscountToCart = async (req, res) => {
@@ -659,5 +469,100 @@ exports.applyDiscountToCart = async (req, res) => {
     console.error('[Apply Discount]', err);
     // Nếu có lỗi, đảm bảo trả về lỗi từ backend để frontend hiển thị
     res.status(500).json({ error: err.message || 'Không thể áp dụng mã giảm giá' });
+  }
+};
+
+// update quantity
+exports.updateCartItemQuantity = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { itemId } = req.params;
+    const { quantity } = req.body;
+
+    if (!quantity || quantity <= 0) {
+      return res.status(400).json({ error: 'Số lượng không hợp lệ' });
+    }
+
+    const cartItem = await CartItem.findOne({ _id: itemId, userId });
+    if (!cartItem) {
+      return res.status(404).json({ error: 'Không tìm thấy sản phẩm trong giỏ hàng' });
+    }
+
+    cartItem.quantity = quantity;
+
+    // Cập nhật lại giá theo quantity mới
+    const product = await Product.findById(cartItem.productId).populate('sizeOptions');
+    if (!product) return res.status(404).json({ error: 'Sản phẩm không tồn tại' });
+
+    const sizeOption = product.sizeOptions.find(s => s.size === cartItem.size);
+    if (!sizeOption || typeof sizeOption.multiplier !== 'number') {
+      return res.status(400).json({ error: 'Kích thước sản phẩm không hợp lệ' });
+    }
+
+    let newPrice = product.basePrice * sizeOption.multiplier * quantity;
+
+    for (const toppingId of cartItem.toppings) {
+      const topping = await Topping.findById(toppingId);
+      if (topping && typeof topping.price === 'number') {
+        newPrice += topping.price * quantity;
+      }
+    }
+
+    cartItem.price = newPrice;
+    await cartItem.save();
+
+    // Tính lại toàn bộ giỏ hàng
+    const cart = await Cart.findOne({ userId }).populate({
+      path: 'cartItems',
+      populate: [
+        {
+          path: 'productId',
+          model: 'Product',
+          populate: ['categoryId', { path: 'sizeOptions', model: 'Size' }, 'toppingOptions']
+        },
+        { path: 'toppings', model: 'Topping' }
+      ]
+    });
+
+    if (!cart) return res.status(404).json({ error: 'Không tìm thấy giỏ hàng' });
+
+    let subtotal = 0;
+    const updatedItems = cart.cartItems.map(item => {
+      subtotal += item.price;
+      return {
+        _id: item._id,
+        productId: item.productId,
+        name: item.productId.name,
+        size: item.size,
+        toppings: item.toppings,
+        quantity: item.quantity,
+        price: item.price
+      };
+    });
+
+    cart.subtotal = subtotal;
+
+    // Giữ discount hiện tại, nhưng đảm bảo không vượt quá subtotal
+    if (cart.discount > subtotal) {
+      cart.discount = 0;
+      cart.promoCode = '';
+    }
+
+    cart.total = subtotal + cart.deliveryFee - cart.discount;
+    await cart.save();
+
+    res.status(200).json({
+      message: 'Cập nhật số lượng thành công',
+      items: updatedItems,
+      subtotal: cart.subtotal,
+      deliveryFee: cart.deliveryFee,
+      discount: cart.discount,
+      total: cart.total,
+      promoCode: cart.promoCode || ''
+    });
+
+  } catch (err) {
+    console.error('[updateCartItemQuantity]', err);
+    res.status(500).json({ error: 'Không thể cập nhật số lượng sản phẩm' });
   }
 };
