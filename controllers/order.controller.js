@@ -425,6 +425,9 @@ exports.createOrder = async (req, res) => {
 };
 
 
+
+//  1️⃣ user role xem lịch sử đơn
+
 exports.getOrderById = async (req, res) => {
   try {
     const order = await Order.findById(req.params.orderId).populate('items.productId');
@@ -439,6 +442,7 @@ exports.getOrderById = async (req, res) => {
 };
 
 // --- 📜 User Role: Get Order History ---
+
 exports.getUserOrders = async (req, res) => {
   try {
     const userId = req.user._id;
@@ -588,8 +592,10 @@ exports.getStaffOrders = async (req, res) => {
 
     if (status) filter.status = status; // nếu có query status cụ thể
 
-    const orders = await Order.find(filter).sort({ createdAt: -1 });
-
+    const orders = await Order.find(filter)
+    .populate('userId', 'fullname email phone')
+    .sort({ createdAt: -1 });
+    // console.log(orders);
     res.status(200).json(orders);
   } catch (err) {
     console.error('[getStaffOrders]', err);
