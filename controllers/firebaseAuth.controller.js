@@ -87,7 +87,7 @@ exports.googleLogin = async (req, res) => {
   const { idToken } = req.body;
 
   try {
-    // Verify Google ID token
+    // Verify Firebase ID token (từ Firebase Client SDK)
     const decodedToken = await admin.auth().verifyIdToken(idToken);
     const firebaseUser = await admin.auth().getUser(decodedToken.uid);
 
@@ -112,7 +112,16 @@ exports.googleLogin = async (req, res) => {
     });
   } catch (error) {
     console.error('Firebase Google login error:', error);
-    res.status(401).json({ message: 'Token không hợp lệ' });
+
+    // Nếu là lỗi audience, hướng dẫn client
+    if (error.code === 'auth/argument-error' && error.message.includes('audience')) {
+      res.status(400).json({
+        message: 'Token không đúng. Vui lòng sử dụng Firebase Client SDK để authenticate.',
+        details: 'Client cần dùng Firebase SDK để sign in with Google, không phải Google OAuth trực tiếp.'
+      });
+    } else {
+      res.status(401).json({ message: 'Token không hợp lệ' });
+    }
   }
 };
 
