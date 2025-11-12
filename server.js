@@ -54,7 +54,10 @@ app.get('/', (req, res) => {
 });
 
 const authRoutes = require('./routes/auth.routes');   // authRoutes phải gọi sau .env
+const firebaseAuthRoutes = require('./routes/firebaseAuth.routes'); // Firebase Auth routes
+
 app.use('/api/auth', authRoutes);
+app.use('/api/firebase-auth', firebaseAuthRoutes);
 app.use('/api/users',userRoutes);
 app.use('/api/toppings', toppingRoutes);
 app.use('/api/sizes', sizeRoutes);
@@ -81,4 +84,3 @@ const PORT = process.env.PORT || 8080;
 app.listen(PORT, '0.0.0.0', () =>{
    console.log(`🚀 HHHHHHH Server running on http://localhost:${PORT}`)
 });
-
