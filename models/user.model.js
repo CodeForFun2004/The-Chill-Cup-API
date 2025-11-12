@@ -53,6 +53,9 @@ const userSchema = new mongoose.Schema({
   googleId: { type: String },
   refreshToken: { type: String },
 
+  // Firebase Auth integration - chỉ cho user mới
+  firebaseUid: { type: String, unique: true, sparse: true },
+
   storeId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Store',
@@ -65,8 +68,8 @@ const userSchema = new mongoose.Schema({
 // ✅ Hash password before saving
 userSchema.pre('save', async function (next) {
   try {
-    // Hash password nếu có
-    if (this.isModified('password') && this.password) {
+    // Chỉ hash password cho user JWT (không có firebaseUid)
+    if (this.isModified('password') && this.password && !this.firebaseUid) {
       const salt = await bcrypt.genSalt(10);
       this.password = await bcrypt.hash(this.password, salt);
     }
@@ -106,6 +109,26 @@ userSchema.pre('save', async function (next) {
 // ✅ Method to compare passwords
 userSchema.methods.matchPassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
+};
+
+// ✅ Static method để tạo/tìm user từ Firebase Auth
+userSchema.statics.findOrCreateFromFirebase = async function(firebaseUser) {
+  let user = await this.findOne({ firebaseUid: firebaseUser.uid });
+
+  if (!user) {
+    // Tạo user mới từ Firebase data
+    user = new this({
+      firebaseUid: firebaseUser.uid,
+      email: firebaseUser.email,
+      fullname: firebaseUser.displayName || firebaseUser.email.split('@')[0],
+      username: firebaseUser.email.split('@')[0],
+      avatar: firebaseUser.photoURL,
+      // Không set password cho Firebase users
+    });
+    await user.save();
+  }
+
+  return user;
 };
 
 module.exports = mongoose.model('User', userSchema);
