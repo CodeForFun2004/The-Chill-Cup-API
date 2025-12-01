@@ -36,9 +36,9 @@ const aiRoutes = require('./routes/chatbot.routes'); // Import chatbot routes
 const app = express();
 // Configure CORS explicitly
 app.use(cors({
-  origin: ['http://localhost:8080', 'http://10.0.2.2:8080', 'http://10.0.2.2'], // Allow emulator and local origins
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // Explicitly allow methods
   allowedHeaders: ['Content-Type', 'Authorization'], // Allow Authorization header
+  credentials: true, // Allow cookies and credentials
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

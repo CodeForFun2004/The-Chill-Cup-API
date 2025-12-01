@@ -577,7 +577,7 @@ exports.getStaffOrders = async (req, res) => {
     const staffId = req.user._id; // lấy từ protect middleware
 
     // 1️⃣ Tìm store mà staff này quản lý
-    const store = await Store.findOne({ "staff._id": staffId });
+    const store = await Store.findOne({ "staff": staffId });
     if (!store) {
       return res.status(404).json({ error: 'Nhân viên chưa được gán quản lý cửa hàng nào' });
     }
